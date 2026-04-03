@@ -72,7 +72,8 @@ cp .env.example .env   # then fill in your API keys
 
 ```bash
 OPENAI_API_KEY=sk-...
-GOS_EMBEDDING_MODEL=text-embedding-3-large
+# Use the ``openai/...`` prefix so LiteLLM targets the OpenAI API (omit OPENAI_BASE_URL).
+GOS_EMBEDDING_MODEL=openai/text-embedding-3-large
 GOS_EMBEDDING_DIM=3072
 ```
 </details>
@@ -81,10 +82,22 @@ GOS_EMBEDDING_DIM=3072
 <summary><strong>Provider: OpenRouter</strong></summary>
 
 ```bash
-OPENAI_API_KEY=<openrouter-key>
+OPENROUTER_API_KEY=<openrouter-key>
 OPENAI_BASE_URL=https://openrouter.ai/api/v1
-GOS_EMBEDDING_MODEL=openai/text-embedding-3-large
+GOS_EMBEDDING_MODEL=openrouter/openai/text-embedding-3-large
 GOS_EMBEDDING_DIM=3072
+```
+</details>
+
+<details>
+<summary><strong>Provider: Azure AI (OpenAI-compatible)</strong></summary>
+
+```bash
+OPENAI_API_KEY=<azure-api-key>
+OPENAI_BASE_URL=https://YOUR-RESOURCE.services.ai.azure.com/openai/v1
+# Must match your **deployment name** in Azure (not necessarily ``text-embedding-3-large``).
+GOS_EMBEDDING_MODEL=openai/<your-deployment-name>
+GOS_EMBEDDING_DIM=<vector-dimension-for-that-model>
 ```
 </details>
 
@@ -160,8 +173,8 @@ All runtime settings are driven by environment variables. See [`.env.example`](.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GOS_EMBEDDING_MODEL` | `openai/text-embedding-3-large` | Embedding model for indexing and retrieval |
-| `GOS_EMBEDDING_DIM` | `3072` | Embedding dimension (must match the model) |
+| `GOS_EMBEDDING_MODEL` | `openai/text-embedding-3-large` | Embedding model for indexing and retrieval (use `openai/<deployment>` on Azure) |
+| `GOS_EMBEDDING_DIM` | `3072` | Embedding dimension (must match the model output) |
 | `GOS_PREBUILT_WORKING_DIR` | -- | Path to a prebuilt workspace for retrieval |
 | `GOS_RETRIEVAL_TOP_N` | `8` | Maximum number of skills returned |
 | `GOS_SEED_TOP_K` | `5` | Initial seed count before graph expansion |
@@ -204,13 +217,15 @@ We evaluate GoS on three benchmarks:
 | **ScienceWorld** | Science experiment simulation | varies by task type |
 | **SkillsBench** | Dockerized coding tasks | 87 tasks |
 
+For **running these evaluations**, we recommend routing the agent’s chat / completion API through [OpenRouter](https://openrouter.ai/): use an OpenAI-compatible `BASE_URL` (for example `https://openrouter.ai/api/v1`) and the API key your runner documents. The GoS project’s own evaluation testing is done mainly this way. Embeddings for indexing and retrieval are separate; configure them in `.env` as in [`.env.example`](.env.example) (OpenRouter, direct OpenAI, Gemini, or Azure). See [evaluation/README.md](evaluation/README.md) for per-track commands and environment variables.
+
 Benchmark data is hosted externally and **not** included in this repository:
 
 ```bash
 ./scripts/download_data.sh          # download all assets (~780 MB)
 ```
 
-See [DATA.md](DATA.md) for selective downloads and [evaluation/README.md](evaluation/README.md) for detailed experiment instructions.
+See [DATA.md](DATA.md) for selective downloads.
 
 ## Citation
 

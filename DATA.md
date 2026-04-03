@@ -72,4 +72,4 @@ uv run gos retrieve "parse binary STL file, calculate volume and mass" \
   --max-skills 5
 ```
 
-> **Note:** Building requires an embedding API. Configure your provider in `.env` (see [`.env.example`](.env.example)). The workspace must be queried with the same embedding model it was indexed with.
+> **Note:** Building requires an embedding API. Configure your provider in `.env` (see [`.env.example`](.env.example)). The workspace must be queried with the same embedding model it was indexed with. On **Azure**, set `GOS_EMBEDDING_MODEL=openai/<deployment-name>` to match the name shown in the Azure portal, not necessarily `text-embedding-3-large`.

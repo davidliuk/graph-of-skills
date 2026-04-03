@@ -106,13 +106,21 @@ export GOS_EMBEDDING_DIM=3072
 Or for OpenRouter:
 
 ```bash
-export OPENAI_API_KEY=<openrouter-key>
+export OPENROUTER_API_KEY=<openrouter-key>
 export OPENAI_BASE_URL=https://openrouter.ai/api/v1
+export GOS_EMBEDDING_MODEL=openrouter/openai/text-embedding-3-large
+export GOS_EMBEDDING_DIM=3072
+```
+
+Or for OpenAI directly (no custom base URL):
+
+```bash
+export OPENAI_API_KEY=<your-key>
 export GOS_EMBEDDING_MODEL=openai/text-embedding-3-large
 export GOS_EMBEDDING_DIM=3072
 ```
 
-> **Important:** The embedding model must match the one used when the workspace was indexed.
+> **Important:** The embedding model must match the one used when the workspace was indexed. On Azure, `GOS_EMBEDDING_MODEL` must be `openai/<deployment-name>`; see [`.env.example`](../.env.example).
 
 ## Building a GoS Workspace
 
