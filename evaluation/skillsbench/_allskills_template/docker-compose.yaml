@@ -1,0 +1,20 @@
+services:
+  main:
+    command:
+      - /bin/bash
+      - -lc
+      - |
+        set -e
+        for target in           /root/.claude/skills           /root/.codex/skills           /root/.opencode/skill           /root/.opencode/skills           /root/.goose/skills           /root/.factory/skills           /root/.agents/skills           /root/.gemini/skills           /root/.github/skills           /root/.terminus/skills           /root/.cursor/skills           /root/skills           /root/environment/skills           /app/.claude/skills           /app/.codex/skills           /app/.opencode/skill           /app/.opencode/skills           /app/.goose/skills           /app/.factory/skills           /app/.agents/skills           /app/.gemini/skills           /app/.cursor/skills           /app/skills           /app/workspace/.claude/skills           /app/workspace/.codex/skills           /app/workspace/.agents/skills           /app/workspace/.gemini/skills           /app/workspace/skills           /app/video/.claude/skills           /app/video/.codex/skills           /app/video/.agents/skills           /app/video/.gemini/skills           /app/video/skills           /workspace/.claude/skills           /workspace/.codex/skills           /workspace/.agents/skills           /workspace/.gemini/skills           /workspace/skills           /home/github/build/.claude/skills           /home/github/build/.codex/skills           /home/github/build/.agents/skills           /home/github/build/.gemini/skills           /home/github/build/skills           /home/travis/.claude/skills           /home/travis/.codex/skills           /home/travis/.agents/skills           /home/travis/.gemini/skills           /home/travis/skills; do
+          mkdir -p "$(dirname "$$target")"
+          rm -rf "$$target"
+          ln -s /opt/skillsbench/skills "$$target"
+        done
+        mkdir -p /root/verifier-skills
+        rm -rf /root/verifier-skills/gmail-skill
+        ln -s /opt/skillsbench/skills/gmail-skill /root/verifier-skills/gmail-skill
+        exec sleep infinity
+    volumes:
+      - ${SKILLSBENCH_SKILLS_HOST_DIR:-../../../../data/skillsets/skills_200}:/opt/skillsbench/skills:ro
+    environment:
+      - SKILLSBENCH_SKILLS_DIR=/opt/skillsbench/skills

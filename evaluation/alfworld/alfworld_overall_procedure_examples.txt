@@ -1,0 +1,120 @@
+<EXAMPLE_1>
+
+## Task Execution Guidelines
+
+Your task is to put a hot cup in a cabinet. This requires multiple steps:
+
+### Phase 1: Locate Cup
+- Systematically search receptacles where cups are commonly found (countertops, cabinets, shelves, coffeemachine area, sinkbasin)
+- Use "go to {recep}" to navigate and observe each location
+- Once you find a cup, use "take cup X from {recep}" to acquire it
+
+### Phase 2: Heat Cup
+- Navigate to the microwave using "go to microwave 1"
+- Open the microwave: "open microwave 1"
+- Place the cup inside: "put cup X in/on microwave 1"
+- Heat the cup: "heat cup X with microwave 1"
+- Open microwave again if needed: "open microwave 1"
+- Take the heated cup: "take cup X from microwave 1"
+
+### Phase 3: Place Hot Cup in Cabinet
+- Navigate to a cabinet (e.g., "go to cabinet 1")
+- Open the cabinet if needed: "open cabinet 1"
+- Place the hot cup: "put cup X in/on cabinet 1"
+
+### Important Rules:
+- Always check environment feedback after each action
+- If you get "Nothing happened", your action was invalid - try a different approach
+- You must actually heat the cup before placing it in the cabinet
+- Only the environment feedback can confirm task completion
+
+Begin by searching for a cup in likely locations!
+
+<EXAMPLE_1_END>
+
+--------------------------------------------------------------------------------
+
+<EXAMPLE_2>
+
+TASK PROCEDURAL GUIDANCE:
+This task requires completing multiple phases in sequence:
+
+Phase 1 - LOCATE TOMATO:
+- Search high-probability locations (countertop, diningtable, fridge, cabinets)
+- Use "go to {recep}" to navigate to receptacles
+- Use "open {recep}" if needed to inspect enclosed locations
+- Systematically search until tomato is found
+
+Phase 2 - PICK UP TOMATO:
+- Navigate to the receptacle containing the tomato
+- Use "take tomato {number} from {recep}" to pick it up
+- Confirm possession before proceeding
+
+Phase 3 - HEAT TOMATO:
+- Navigate to microwave using "go to microwave 1"
+- Open the microwave using "open microwave 1"
+- Place tomato in microwave using "put tomato {number} in/on microwave 1"
+- Heat the tomato using "heat tomato {number} with microwave 1"
+- Take the heated tomato back using "take tomato {number} from microwave 1"
+
+Phase 4 - PLACE IN FRIDGE:
+- Navigate to fridge using "go to fridge 1"
+- Open the fridge using "open fridge 1" if needed
+- Place heated tomato in fridge using "put tomato {number} in/on fridge 1"
+- Task complete when tomato is successfully placed in fridge
+
+CRITICAL REMINDERS:
+- If you receive "Nothing happened", your last action was invalid. Try alternative actions.
+- Always verify object possession after "take" actions
+- Must heat tomato BEFORE placing in fridge
+- Use exact object names with numbers as they appear in observations (e.g., "tomato 1")
+- Task completion is determined ONLY by environment feedback, not your reasoning
+
+Begin with Phase 1: Locate the tomato in the environment.
+
+<EXAMPLE_2_END>
+
+--------------------------------------------------------------------------------
+
+<EXAMPLE_3>
+
+# Task Completion Strategy: Heated Egg Placement in Fridge
+
+To complete this task successfully, follow this strategic workflow:
+
+## **Phase 1: Locate Object in Environment**
+- Systematically search for the egg by checking **high-probability locations**:
+    - Fridge 1
+    - Countertops
+    - Cabinets
+- Use `go to {recep}` to navigate and inspect locations
+- Observe feedback carefully to identify where the egg is located
+
+## **Phase 2: Pick Up Object**
+- Once the egg is located, navigate to its receptacle if not already there
+- Use `take egg 1 from {recep}` to pick up the egg
+- Confirm possession through environment feedback before proceeding
+
+## **Phase 3: Heat the Object**
+- Navigate to a heating appliance:
+    - **Microwave 1** (most reliable)
+    - Stoveburner 1-4 (alternatives)
+- Use `heat egg 1 with {heating_recep}` to heat the egg
+- Confirm the egg is now hot through environment feedback
+
+## **Phase 4: Navigate to Target Receptacle**
+- Move to fridge 1 using `go to fridge 1`
+- Ensure you are at the correct location before attempting placement
+
+## **Phase 5: Place Object in Receptacle**
+- Use `put egg 1 in/on fridge 1` to complete the task
+- Verify task completion through environment feedback
+
+---
+
+## **Important Reminders:**
+- If you receive **"Nothing happened"**, your action was invalid — try an alternative approach
+- Always base your next action on the **ACTUAL observation feedback**, not assumptions
+- Complete each phase before moving to the next
+
+<EXAMPLE_3_END>

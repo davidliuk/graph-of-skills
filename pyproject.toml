@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "graph-skills"
+version = "0.1.0"
+description = "Graph of Skills (GoS): Dependency-aware structural retrieval for massive agent skills."
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+license = { text = "MIT" }
+keywords = ["llm", "agents", "retrieval", "skills", "graph"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+authors = [
+    { name = "Dawei Liu", email = "davidliu02k@gmail.com" },
+    { name = "Zongxia Li" },
+    { name = "Hongyang Du" },
+    { name = "Xiyang Wu" },
+    { name = "Shihang Gui" },
+    { name = "Yongbei Kuang" },
+    { name = "Lichao Sun" },
+]
+dependencies = [
+    "fast-graphrag>=0.0.3,<0.1.0",
+    "fastmcp>=0.4.1,<1.0.0",
+    "json-repair>=0.39.1,<1.0.0",
+    "litellm>=1.34.0,<2.0.0",
+    "loguru>=0.7.2,<1.0.0",
+    "numpy>=1.26.4,<3.0.0",
+    "pydantic>=2.6.4,<3.0.0",
+    "pydantic-settings>=2.2.1,<3.0.0",
+    "python-dotenv>=1.0.1,<2.0.0",
+    "retry>=0.9.2,<1.0.0",
+    "pyyaml>=6.0.1,<7.0.0",
+    "rich>=13.7.1,<15.0.0",
+    "typer>=0.12.3,<1.0.0"
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.1.1",
+    "black>=24.3.0",
+    "isort>=5.13.2",
+    "ruff>=0.11.0"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["gos*"]
+
+[project.scripts]
+gos = "gos.interfaces.cli:main"
+gos-server = "gos.interfaces.mcp:main"
+graphskills-query = "gos.interfaces.cli:graphskills_query_main"
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

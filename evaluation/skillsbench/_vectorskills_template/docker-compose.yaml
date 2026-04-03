@@ -1,0 +1,24 @@
+services:
+  main:
+    command:
+      - /bin/bash
+      - -lc
+      - |
+        set -e
+        mkdir -p /root/verifier-skills
+        rm -rf /root/verifier-skills/gmail-skill
+        ln -s /opt/graphskills/skills/gmail-skill /root/verifier-skills/gmail-skill
+        exec sleep infinity
+    volumes:
+      - ../../../../../../:/opt/graphskills/repo:ro
+      - ${GOS_PREBUILT_HOST_WORKSPACE:-../../../../../data/gos_workspace/skills_1000_v1}:/opt/graphskills/prebuilt:ro
+      - ../../../all_skills:/opt/graphskills/skills:ro
+    environment:
+      - GOS_PREBUILT_WORKING_DIR=/opt/graphskills/prebuilt
+      - GOS_WORKING_DIR=/opt/graphskills/runtime
+      - GOS_SKILLS_DIR=/opt/graphskills/skills
+      - GOS_EMBEDDING_MODEL=openai/text-embedding-3-large
+      - GOS_EMBEDDING_DIM=3072
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-${OPENAI_API_KEY:-}}
+      - OPENAI_API_KEY=${OPENROUTER_API_KEY:-${OPENAI_API_KEY:-}}
+      - OPENAI_BASE_URL=https://openrouter.ai/api/v1

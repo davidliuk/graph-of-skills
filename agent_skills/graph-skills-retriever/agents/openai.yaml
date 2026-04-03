@@ -1,0 +1,4 @@
+interface:
+  display_name: "Graph Skills Retriever"
+  short_description: "Retrieve bounded skill bundles from a prebuilt GoS graph"
+  default_prompt: "Use $graph-skills-retriever to fetch a focused skill bundle before manually searching a large skill library."

@@ -1,0 +1,44 @@
+# ── GoS instrumentation ──────────────────────────────────────────────────────
+# hnswlib (dep of fast-graphrag) requires a C++ compiler; install build tools
+# if not already present (harmless on full images that already have them).
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends build-essential && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install GoS runtime dependencies (gos package itself is volume-mounted at runtime).
+RUN pip install \
+    "fast-graphrag>=0.0.3,<0.1.0" \
+    "fastmcp>=0.4.1,<1.0.0" \
+    "json-repair>=0.39.1,<1.0.0" \
+    "litellm>=1.34.0,<2.0.0" \
+    "loguru>=0.7.2,<1.0.0" \
+    "numpy>=1.26.4,<3.0.0" \
+    "pydantic>=2.6.4,<3.0.0" \
+    "pydantic-settings>=2.2.1,<3.0.0" \
+    "python-dotenv>=1.0.1,<2.0.0" \
+    "pyyaml>=6.0.1,<7.0.0" \
+    "rich>=13.7.1,<15.0.0" \
+    "typer>=0.12.3,<1.0.0" \
+    --break-system-packages
+
+# Create the graphskills-query CLI wrapper.
+# At runtime the gos package is at /opt/graphskills/gos/ via volume mount.
+RUN printf '#!/usr/bin/env python3\nimport sys\nsys.path.insert(0, "/opt/graphskills")\nfrom gos.interfaces.cli import graphskills_query_main\ngraphskills_query_main()\n' \
+    > /usr/local/bin/graphskills-query && chmod +x /usr/local/bin/graphskills-query
+
+ENV PYTHONPATH=/opt/graphskills:$PYTHONPATH
+ENV GOS_PREBUILT_WORKING_DIR=/opt/graphskills/prebuilt
+ENV GOS_WORKING_DIR=/opt/graphskills/runtime
+
+# Copy ONLY the graph-skills-retriever skill into all agent skill paths.
+COPY skills /root/.claude/skills
+COPY skills /root/.codex/skills
+COPY skills /root/.opencode/skill
+COPY skills /root/.goose/skills
+COPY skills /root/.factory/skills
+COPY skills /root/.agents/skills
+COPY skills /root/.gemini/skills
+
+# CLAUDE.md instructs the agent to call graphskills-query before solving.
+COPY CLAUDE.md /root/CLAUDE.md
+# ─────────────────────────────────────────────────────────────────────────────

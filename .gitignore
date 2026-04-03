@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Testing / linting
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Secrets
+.env
+
+# IDE / editor
+.cursor/
+.claude/
+.agents/
+.gemini/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Benchmark data (downloaded separately, see DATA.md)
+data/skillsets/
+data/gos_workspace/
+evaluation/skillsbench/tasks/
+
+# Generated benchmark task directories
+generated_*/
+
+# Job / run outputs
+jobs/
+artifacts/
+
+# Local workspaces and temp
+gos_workspace/
+.gos_experiment_workspace/
+tmp_*/
+.tmp_*/
+.pipeline/
+
+# Misc
+instance.json
+logs/
+results/
+.olauth

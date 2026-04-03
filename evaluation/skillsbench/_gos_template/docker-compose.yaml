@@ -1,0 +1,36 @@
+services:
+  main:
+    command:
+      - /bin/bash
+      - -lc
+      - |
+        set -e
+        mkdir -p /root/verifier-skills
+        rm -rf /root/verifier-skills/gmail-skill
+        ln -s /opt/graphskills/skills/gmail-skill /root/verifier-skills/gmail-skill
+        exec sleep infinity
+    volumes:
+      # GoS package source (mounted read-only; importable via PYTHONPATH=/opt/graphskills)
+      - ../../../../../gos:/opt/graphskills/gos:ro
+      # Pre-built skill graph workspace. Defaults to skills_200_v1. Override
+      # GOS_PREBUILT_HOST_WORKSPACE to switch to skills_1000_v1 or another rebuilt workspace.
+      - ${GOS_PREBUILT_HOST_WORKSPACE:-../../../../data/gos_workspace/skills_200_v1}:/opt/graphskills/prebuilt:ro
+      # All skill sources (SKILL.md + scripts/ + references/) — NOT in agent skill dirs,
+      # accessible so agents can read scripts after GoS retrieval.
+      - ../../../all_skills:/opt/graphskills/skills:ro
+    environment:
+      - GOS_PREBUILT_WORKING_DIR=/opt/graphskills/prebuilt
+      - GOS_WORKING_DIR=/opt/graphskills/runtime
+      # Rewrites Source: paths in graphskills-query output to container-accessible paths
+      - GOS_SKILLS_DIR=/opt/graphskills/skills
+      # Retrieval-time provider settings are passed through only when set so
+      # the container keeps GoS defaults for unset values.
+      - GOS_EMBEDDING_MODEL
+      - GOS_EMBEDDING_DIM
+      - GOS_LIGHT_SEED_MODE
+      - GOS_LIGHT_PROPAGATION_MODE
+      - GOS_LLM_MODEL
+      - GEMINI_API_KEY
+      - OPENROUTER_API_KEY
+      - OPENAI_API_KEY
+      - OPENAI_BASE_URL
