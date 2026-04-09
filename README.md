@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://arxiv.org/abs/TODO"><img src="https://img.shields.io/badge/arXiv-Paper-b31b1b?logo=arxiv" alt="Paper"></a>
+  <a href="https://arxiv.org/abs/2604.05333"><img src="https://img.shields.io/badge/arXiv-2604.05333-b31b1b?logo=arxiv" alt="Paper"></a>
   <a href="https://huggingface.co/datasets/DLPenn/graph-of-skills-data"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Data-yellow" alt="Data"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue" alt="License"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.10--3.12-3776ab?logo=python&logoColor=white" alt="Python"></a>
@@ -336,22 +336,19 @@ Selective downloads and workspace rebuild steps: **[DATA.md](DATA.md)**.
 
 ## Citation
 
-Coming soon.
-
-<!--
 If you find this work useful, please cite:
 
 ```bibtex
-@article{liu2026graphofskills,
-  title         = {Graph of Skills: Dependency-Aware Structural Retrieval for Massive Agent Skills},
-  author        = {Dawei Liu and Zongxia Li and Hongyang Du and Xiyang Wu and Shihang Gui and Yongbei Kuang and Lichao Sun},
-  year          = {2026},
-  eprint        = {TODO},
-  archivePrefix = {arXiv},
-  primaryClass  = {cs.CL}
+@misc{li2026graphskillsdependencyawarestructural,
+      title={Graph of Skills: Dependency-Aware Structural Retrieval for Massive Agent Skills}, 
+      author={Dawei Liu and Zongxia Li and Hongyang Du and Xiyang Wu and Shihang Gui and Yongbei Kuang and Lichao Sun},
+      year={2026},
+      eprint={2604.05333},
+      archivePrefix={arXiv},
+      primaryClass={cs.AI},
+      url={https://arxiv.org/abs/2604.05333}, 
 }
 ```
--->
 
 ## License
 
