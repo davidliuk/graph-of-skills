@@ -52,8 +52,6 @@ Graph of Skills builds a **skill graph** offline from a library of `SKILL.md` do
 
 GoS is evaluated on **SkillsBench** (87 dockerized coding tasks) and **ALFWorld** (134 household games) across three model families. **R** = average reward (%), **T** = input tokens, **S** = runtime (s). ↑ higher is better, ↓ lower is better.
 
-### Main Results
-
 | Model | Method | SB R↑ | SB T↓ | SB S↓ | AW R↑ | AW T↓ | AW S↓ |
 |-------|--------|------:|------:|------:|------:|------:|------:|
 | Claude Sonnet 4.5 | Vanilla Skills | 25.0 | 967,791 | 465.8 | 89.3 | 1,524,401 | 53.2 |
@@ -66,36 +64,7 @@ GoS is evaluated on **SkillsBench** (87 dockerized coding tasks) and **ALFWorld*
 | | Vector Skills | 21.5 | **1,243,648** | 773.0 | 92.9 | **34,436** | **57.0** |
 | | **+ GoS** | **34.4** | 1,379,773 | 715.6 | **93.6** | 46,462 | 64.7 |
 
-GoS achieves the **highest reward on every model** on both benchmarks while cutting input tokens by up to **56×** (ALFWorld, Claude Sonnet 4.5) vs. Vanilla Skills.
-
-### Scalability (SkillsBench, GPT-5.2 Codex)
-
-GoS reward stays consistently high as the skill library grows from 200 to 2,000 skills, while Vanilla Skills token cost scales linearly.
-
-| Library Size | Method | R↑ | T↓ (M) | S↓ |
-|--------------|--------|---:|-------:|---:|
-| 200 | Vanilla Skills | **32.5** | 1.85 | **701.6** |
-| | Vector Skills | 21.2 | **1.06** | 833.8 |
-| | + GoS | 32.1 | 1.36 | 731.2 |
-| 500 | Vanilla Skills | 26.0 | 1.93 | **756.8** |
-| | Vector Skills | 20.7 | **1.10** | 849.5 |
-| | + GoS | **31.4** | 1.16 | 890.3 |
-| 1,000 | Vanilla Skills | 27.4 | 3.19 | **686.8** |
-| | Vector Skills | 21.5 | **1.24** | 773.0 |
-| | + GoS | **34.4** | 1.38 | 715.6 |
-| 2,000 | Vanilla Skills | 26.7 | 5.84 | **733.5** |
-| | Vector Skills | 23.8 | **1.11** | 799.8 |
-| | + GoS | **31.3** | 1.14 | 788.0 |
-
-### Ablation (SkillsBench, GPT-5.2 Codex, 1,000 skills)
-
-| Method | R↑ | T↓ (M) | S↓ |
-|--------|---:|-------:|---:|
-| **Full GoS** | **34.4** | 1.38 | **715.6** |
-| w/o graph propagation | 29.3 | **0.89** | 766.2 |
-| w/o lexical + rerank | 26.7 | 1.01 | 747.7 |
-
-Both graph propagation and the hybrid lexical+rerank seed contribute independently to reward; removing either degrades performance by 5–8 points.
+GoS achieves the **highest reward on every model** on both benchmarks while cutting input tokens by up to **56×** (ALFWorld, Claude Sonnet 4.5) vs. Vanilla Skills. For scalability and ablation analysis, see the [paper](https://arxiv.org/abs/2604.05333).
 
 ## Installation
 
