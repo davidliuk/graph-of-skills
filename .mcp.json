@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "graph-of-skills": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        ".",
+        "gos-claude",
+        "--workspace",
+        "data/gos_workspace/skills_200_v1"
+      ],
+      "env": {}
+    }
+  }
+}

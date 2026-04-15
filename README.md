@@ -10,6 +10,7 @@
 
 <p align="center">
   <a href="https://arxiv.org/abs/2604.05333"><img src="https://img.shields.io/badge/arXiv-2604.05333-b31b1b?logo=arxiv" alt="Paper"></a>
+  <a href="https://huggingface.co/papers/2604.05333"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Paper-yellow" alt="HF Paper"></a>
   <a href="https://huggingface.co/datasets/DLPenn/graph-of-skills-data"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Data-yellow" alt="Data"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue" alt="License"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.10--3.12-3776ab?logo=python&logoColor=white" alt="Python"></a>
@@ -40,6 +41,7 @@ Graph of Skills builds a **skill graph** offline from a library of `SKILL.md` do
 
 | Document | What it covers |
 |----------|----------------|
+| [CLAUDE.md](CLAUDE.md) | **Claude Code integration**: MCP plugin setup, available tools, example workflows, configuration |
 | [DATA.md](DATA.md) | Downloading skill sets, SkillsBench tasks, and prebuilt workspaces (`scripts/download_data.sh`); rebuilding a workspace from source; packaging uploads for HuggingFace |
 | [evaluation/README.md](evaluation/README.md) | **Evaluation overview**: ALFWorld, SkillsBench runners, retrieval modes (`gos` / `vector` / `all_full` / `none`), environment setup for benchmark tracks |
 | [evaluation/skillsbench/README.md](evaluation/skillsbench/README.md) | **SkillsBench detail**: Harbor, Docker, generating task variants (`graphskills_benchmark.py`), batch configs, agents |
@@ -256,8 +258,58 @@ For more agents, configs, and batch YAML, see [evaluation/skillsbench/README.md]
 | `gos experiment` | Run built-in experiment presets |
 | `graphskills-query` | Agent-facing retrieval (rewrites `Source:` paths for containers) |
 | `gos-server` | Start the MCP server for tool-based retrieval |
+| `gos-claude` | Start the MCP server for Claude Code (auto-discovered via `.mcp.json`) |
 
 ## Agent Integration
+
+### Claude Code (MCP Plugin)
+
+GoS ships with a built-in [MCP](https://modelcontextprotocol.io/) server that gives Claude Code direct access to the skill graph. When you open this project, **Claude Code auto-discovers the server** via `.mcp.json` — no manual setup.
+
+**Quick start:**
+
+```bash
+uv sync                              # install deps (once)
+cp .env.example .env                 # fill in API keys
+./scripts/download_data.sh --workspace   # download prebuilt workspaces
+```
+
+Then open the project in Claude Code. The `graph-of-skills` MCP server is ready. Ask naturally:
+
+> "Find skills for processing 3D mesh files with GoS, then follow the skill instructions to complete the task."
+
+Claude Code will call the GoS tools, retrieve relevant skills, and follow their instructions autonomously.
+
+<details>
+<summary><strong>Manual registration (if auto-discovery is not available)</strong></summary>
+
+```bash
+claude mcp add graph-of-skills -- uv run --directory /path/to/graph-of-skills gos-claude
+
+# Or with an explicit workspace
+claude mcp add graph-of-skills -- uv run --directory /path/to/graph-of-skills gos-claude \
+  --workspace data/gos_workspace/skills_200_v1
+```
+
+</details>
+
+**Available tools:**
+
+| Tool | Purpose |
+|------|---------|
+| `search_skills` | Quick ranked summary of relevant skills for a task |
+| `retrieve_skill_bundle` | Full agent-ready skill content (SKILL.md bodies, scripts, graph evidence) |
+| `hydrate_skills` | Load specific skills by exact name |
+| `list_skills` | Browse all indexed skills with descriptions |
+| `get_skill_detail` | Full metadata, I/O schema, and graph neighbors for one skill |
+| `get_skill_neighbors` | Dependency / workflow / semantic edges for a skill |
+| `get_status` | Workspace stats (skill count, edge count, retrieval config) |
+| `index_skills` | Build the skill graph from a directory of SKILL.md files |
+| `add_skill` | Incrementally add new skills to an existing graph |
+
+See **[CLAUDE.md](CLAUDE.md)** for the full integration guide, example workflows, and configuration.
+
+### Docker / Container (SkillsBench)
 
 Inside a Docker container, an agent calls `graphskills-query` with a natural-language task description and receives a bounded skill bundle:
 
@@ -295,7 +347,7 @@ All runtime settings are driven by environment variables. See [`.env.example`](.
 graph-of-skills/
 ├── gos/                          # Core GoS package
 │   ├── core/                     #   Engine, retrieval, parsing, schema
-│   ├── interfaces/               #   CLI and MCP server
+│   ├── interfaces/               #   CLI, MCP server, Claude Code plugin
 │   └── utils/                    #   Configuration (pydantic-settings)
 ├── data/                         # Downloaded data (gitignored; see [DATA.md](DATA.md))
 │   ├── skillsets/                #   Skill libraries (skills_200, 500, 1000, 2000)

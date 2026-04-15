@@ -51,6 +51,7 @@ Data = "https://huggingface.co/datasets/DLPenn/graph-of-skills-data"
 [project.scripts]
 gos = "gos.interfaces.cli:main"
 gos-server = "gos.interfaces.mcp:main"
+gos-claude = "gos.interfaces.claude_code:main"
 graphskills-query = "gos.interfaces.cli:graphskills_query_main"
 
 [project.optional-dependencies]
