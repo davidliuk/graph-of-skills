@@ -18,6 +18,17 @@
 
 ---
 
+## 🔥 Updates
+
+- **[2026-04-15]** Released a [Claude Code MCP plugin](skills/) for graph of skills retrieval — drop-in integration for Claude Code agents.
+- **[2026-04-07]** Paper released on [arXiv:2604.05333](https://arxiv.org/abs/2604.05333) and [HuggingFace Papers](https://huggingface.co/papers/2604.05333).
+- **[2026-04-06]** Code open-sourced on [GitHub](https://github.com/davidliuk/graph-of-skills).
+- **[2026-04-04]** Skill libraries, prebuilt workspaces, and benchmark data released on [HuggingFace](https://huggingface.co/datasets/DLPenn/graph-of-skills-data).
+
+---
+
+## Overview
+
 Graph of Skills builds a **skill graph** offline from a library of `SKILL.md` documents, then retrieves a small, ranked set of relevant skills at task time. Instead of flooding the agent context with an entire skill library, GoS surfaces only the skills most likely to help -- along with their prerequisites and related capabilities.
 
 <p align="center">
@@ -37,16 +48,54 @@ Graph of Skills builds a **skill graph** offline from a library of `SKILL.md` do
 3. **Rerank** -- rerank using the skill-graph structure (dependencies, co-occurrence)
 4. **Return** -- emit a capped, agent-readable skill bundle
 
-## Documentation
+## Results
 
-| Document | What it covers |
-|----------|----------------|
-| [CLAUDE.md](CLAUDE.md) | **Claude Code integration**: MCP plugin setup, available tools, example workflows, configuration |
-| [DATA.md](DATA.md) | Downloading skill sets, SkillsBench tasks, and prebuilt workspaces (`scripts/download_data.sh`); rebuilding a workspace from source; packaging uploads for HuggingFace |
-| [evaluation/README.md](evaluation/README.md) | **Evaluation overview**: ALFWorld, SkillsBench runners, retrieval modes (`gos` / `vector` / `all_full` / `none`), environment setup for benchmark tracks |
-| [evaluation/skillsbench/README.md](evaluation/skillsbench/README.md) | **SkillsBench detail**: Harbor, Docker, generating task variants (`graphskills_benchmark.py`), batch configs, agents |
-| [`.env.example`](.env.example) | All `GOS_*` and provider variables for indexing, retrieval, and CLI |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Dev setup, tests, project layout for contributors |
+GoS is evaluated on **SkillsBench** (87 dockerized coding tasks) and **ALFWorld** (134 household games) across three model families. **R** = average reward (%), **T** = input tokens, **S** = runtime (s). ↑ higher is better, ↓ lower is better.
+
+### Main Results
+
+| Model | Method | SB R↑ | SB T↓ | SB S↓ | AW R↑ | AW T↓ | AW S↓ |
+|-------|--------|------:|------:|------:|------:|------:|------:|
+| Claude Sonnet 4.5 | Vanilla Skills | 25.0 | 967,791 | 465.8 | 89.3 | 1,524,401 | 53.2 |
+| | Vector Skills | 19.3 | 894,640 | **357.3** | 93.6 | 28,407 | **37.8** |
+| | **+ GoS** | **31.0** | **860,315** | 364.9 | **97.9** | **27,215** | 49.2 |
+| MiniMax M2.7 | Vanilla Skills | 17.2 | 942,113 | 580.7 | 47.1 | 2,184,823 | 88.6 |
+| | Vector Skills | 10.4 | **852,881** | 552.9 | 50.7 | 66,109 | 73.4 |
+| | **+ GoS** | **18.7** | 867,452 | **502.5** | **54.3** | **65,227** | **68.8** |
+| GPT-5.2 Codex | Vanilla Skills | 27.4 | 3,187,749 | **686.8** | 89.3 | 1,435,614 | 83.3 |
+| | Vector Skills | 21.5 | **1,243,648** | 773.0 | 92.9 | **34,436** | **57.0** |
+| | **+ GoS** | **34.4** | 1,379,773 | 715.6 | **93.6** | 46,462 | 64.7 |
+
+GoS achieves the **highest reward on every model** on both benchmarks while cutting input tokens by up to **56×** (ALFWorld, Claude Sonnet 4.5) vs. Vanilla Skills.
+
+### Scalability (SkillsBench, GPT-5.2 Codex)
+
+GoS reward stays consistently high as the skill library grows from 200 to 2,000 skills, while Vanilla Skills token cost scales linearly.
+
+| Library Size | Method | R↑ | T↓ (M) | S↓ |
+|--------------|--------|---:|-------:|---:|
+| 200 | Vanilla Skills | **32.5** | 1.85 | **701.6** |
+| | Vector Skills | 21.2 | **1.06** | 833.8 |
+| | + GoS | 32.1 | 1.36 | 731.2 |
+| 500 | Vanilla Skills | 26.0 | 1.93 | **756.8** |
+| | Vector Skills | 20.7 | **1.10** | 849.5 |
+| | + GoS | **31.4** | 1.16 | 890.3 |
+| 1,000 | Vanilla Skills | 27.4 | 3.19 | **686.8** |
+| | Vector Skills | 21.5 | **1.24** | 773.0 |
+| | + GoS | **34.4** | 1.38 | 715.6 |
+| 2,000 | Vanilla Skills | 26.7 | 5.84 | **733.5** |
+| | Vector Skills | 23.8 | **1.11** | 799.8 |
+| | + GoS | **31.3** | 1.14 | 788.0 |
+
+### Ablation (SkillsBench, GPT-5.2 Codex, 1,000 skills)
+
+| Method | R↑ | T↓ (M) | S↓ |
+|--------|---:|-------:|---:|
+| **Full GoS** | **34.4** | 1.38 | **715.6** |
+| w/o graph propagation | 29.3 | **0.89** | 766.2 |
+| w/o lexical + rerank | 26.7 | 1.01 | 747.7 |
+
+Both graph propagation and the hybrid lexical+rerank seed contribute independently to reward; removing either degrades performance by 5–8 points.
 
 ## Installation
 
@@ -182,83 +231,8 @@ uv run gos add path/to/NEW_SKILL.md --workspace data/gos_workspace/skills_200_v1
 
 ### Step 6: What to run next
 
-- **End-to-end sanity check** (retrieval + one Docker task): [Minimal verification](#minimal-verification) below.
+- **End-to-end sanity check** (retrieval + one Docker task): see the **Minimal Verification** collapsible in the [Evaluation](#evaluation) section.
 - **Paper benchmarks** (ALFWorld, SkillsBench): **[evaluation/README.md](evaluation/README.md)** (overview) and **[evaluation/skillsbench/README.md](evaluation/skillsbench/README.md)** (Harbor / task generation).
-
-## Minimal verification
-
-**Scope:** GoS retrieval against a real workspace, then **one** [SkillsBench](evaluation/skillsbench/README.md) task in Docker via [Harbor](https://github.com/harbor-ai/harbor). This is a smoke test, not a full benchmark sweep. For all tracks, see [evaluation/README.md](evaluation/README.md).
-
-### Prerequisites
-
-- `uv sync` and a filled `.env` (embedding provider for the workspace you use, plus **`GEMINI_API_KEY`** for the Harbor agent when using `gemini-cli`).
-- **Docker** running (Harbor drives the task container).
-- **Harbor** on your `PATH`, e.g. `uv tool install harbor` (see [evaluation/skillsbench/README.md](evaluation/skillsbench/README.md)).
-- **Skill library** `data/skillsets/skills_200/` (from `./scripts/download_data.sh --skillsets` or the full download script).
-- A **workspace** at `data/gos_workspace/skills_200_v1`: either build with `gos index` or download with `./scripts/download_data.sh --workspace` ([Quick Start, Step 3](#step-3-get-a-workspace-choose-one-path); full detail in [DATA.md](DATA.md)).
-
-The embedding model in `.env` must match how that workspace was built (same `GOS_EMBEDDING_MODEL` / `GOS_EMBEDDING_DIM` as at index time).
-
-### 1. Retrieval smoke test
-
-```bash
-uv run gos retrieve "unit tests with pytest" \
-  --workspace data/gos_workspace/skills_200_v1 --max-skills 3
-```
-
-You should see **`SKILL_HIT`** and at least one skill block. If you get errors about embedding dimension or missing keys, fix `.env` before continuing.
-
-### 2. Generate a single graph-skills task pack
-
-From the **repository root**, materialize one task (`dialogue-parser` is a small, standard example; it must exist under `evaluation/skillsbench/tasks/`):
-
-```bash
-uv run python evaluation/skillsbench/graphskills_benchmark.py \
-  --skillset-name skills_200 \
-  --task dialogue-parser \
-  --skip-allskills --skip-vectorskills \
-  --output-root evaluation/skillsbench/generated_verify
-```
-
-This writes `evaluation/skillsbench/generated_verify/tasks_graph_skills/dialogue-parser/` with the graph-retrieval sidecar and mounts your workspace into the task image.
-
-### 3. Run that task with Harbor
-
-Still from the repo, load keys then run Harbor **from `evaluation/skillsbench/`** so paths resolve like the rest of the eval docs:
-
-```bash
-cd evaluation/skillsbench
-set -a && source ../../.env && set +a
-harbor run --agent gemini-cli \
-  --model gemini/gemini-3-flash-preview \
-  --force-build \
-  -p generated_verify/tasks_graph_skills/dialogue-parser \
-  -o jobs/verify-sample
-```
-
-Use a `--model` string your Harbor agent accepts (often the same family as in `.env`). First run may spend time on **image build**.
-
-### 4. What “success” looks like
-
-- Harbor finishes with **`Errors: 0`** in the summary table.
-- A **`result.json`** appears under `evaluation/skillsbench/jobs/verify-sample/<timestamp>/`.
-- **Reward** may be `0.0`, partial (e.g. `0.5`), or `1.0` depending on the task and agent; that is normal. The goal of this minimal path is to confirm **retrieval, task packaging, Docker, and the agent all run**, not to maximize score.
-
-For more agents, configs, and batch YAML, see [evaluation/skillsbench/README.md](evaluation/skillsbench/README.md).
-
-## CLI Reference
-
-| Command | Description |
-|---------|-------------|
-| `gos index <dir>` | Build a graph workspace from a skill directory |
-| `gos add <file>` | Add a single skill to an existing workspace |
-| `gos retrieve <query>` | Retrieve a ranked skill bundle for a query |
-| `gos query <query>` | Compact retrieval output (for debugging) |
-| `gos status` | Show workspace statistics |
-| `gos experiment` | Run built-in experiment presets |
-| `graphskills-query` | Agent-facing retrieval (rewrites `Source:` paths for containers) |
-| `gos-server` | Start the MCP server for tool-based retrieval |
-| `gos-claude` | Start the MCP server for Claude Code (auto-discovered via `.mcp.json`) |
 
 ## Agent Integration
 
@@ -325,6 +299,20 @@ Source: /opt/graphskills/skills/mesh-analysis/SKILL.md
 
 Set `GOS_SKILLS_DIR` to control path rewriting, so the same workspace can be indexed on a host and queried inside a container.
 
+## CLI Reference
+
+| Command | Description |
+|---------|-------------|
+| `gos index <dir>` | Build a graph workspace from a skill directory |
+| `gos add <file>` | Add a single skill to an existing workspace |
+| `gos retrieve <query>` | Retrieve a ranked skill bundle for a query |
+| `gos query <query>` | Compact retrieval output (for debugging) |
+| `gos status` | Show workspace statistics |
+| `gos experiment` | Run built-in experiment presets |
+| `graphskills-query` | Agent-facing retrieval (rewrites `Source:` paths for containers) |
+| `gos-server` | Start the MCP server for tool-based retrieval |
+| `gos-claude` | Start the MCP server for Claude Code (auto-discovered via `.mcp.json`) |
+
 ## Configuration
 
 All runtime settings are driven by environment variables. See [`.env.example`](.env.example) for the full template. Download paths and workspace layout on disk are documented in **[DATA.md](DATA.md)**.
@@ -341,42 +329,18 @@ All runtime settings are driven by environment variables. See [`.env.example`](.
 
 > **Note:** The embedding model at retrieval time **must** match the model used when the workspace was indexed.
 
-## Repository Layout
-
-```
-graph-of-skills/
-├── gos/                          # Core GoS package
-│   ├── core/                     #   Engine, retrieval, parsing, schema
-│   ├── interfaces/               #   CLI, MCP server, Claude Code plugin
-│   └── utils/                    #   Configuration (pydantic-settings)
-├── data/                         # Downloaded data (gitignored; see [DATA.md](DATA.md))
-│   ├── skillsets/                #   Skill libraries (skills_200, 500, 1000, 2000)
-│   └── gos_workspace/            #   Indexed or prebuilt graph workspaces
-├── evaluation/                   # See [evaluation/README.md](evaluation/README.md)
-│   ├── alfworld_run.py           #   ALFWorld benchmark runner
-│   ├── skill.py                  #   SkillModule adapter for GoS
-│   └── skillsbench/              #   SkillsBench — [skillsbench/README.md](evaluation/skillsbench/README.md)
-├── skills/                       # Agent bootstrap skills for retrieval
-├── scripts/                      # Utility scripts (data download, etc.)
-├── tests/                        # Test suite
-├── pyproject.toml                # Package definition & CLI entry points
-├── .env.example                  # Environment variable template
-├── DATA.md                       # [Data & downloads](DATA.md)
-└── evaluation/README.md          # [Benchmark overview](evaluation/README.md)
-```
-
 ## Evaluation
 
 **Docs:** Start with **[evaluation/README.md](evaluation/README.md)** (all tracks, modes, env vars). For SkillsBench + Harbor only, use **[evaluation/skillsbench/README.md](evaluation/skillsbench/README.md)**. Dataset files and scripts are described in **[DATA.md](DATA.md)**.
 
-We evaluate GoS on three benchmarks:
+We evaluate GoS on two benchmarks:
 
 | Benchmark | Type | Tasks |
 |-----------|------|-------|
 | **ALFWorld** | Interactive household tasks | 134 games |
 | **SkillsBench** | Dockerized coding tasks | 87 tasks |
 
-For **running these evaluations**, we recommend routing the agent’s chat / completion API through [OpenRouter](https://openrouter.ai/): use an OpenAI-compatible `BASE_URL` (for example `https://openrouter.ai/api/v1`) and the API key your runner documents. The GoS project’s own evaluation testing is done mainly this way. Embeddings for indexing and retrieval are separate; configure them in `.env` as in [`.env.example`](.env.example) (OpenRouter, direct OpenAI, Gemini, or Azure).
+For **running these evaluations**, we recommend routing the agent's chat / completion API through [OpenRouter](https://openrouter.ai/): use an OpenAI-compatible `BASE_URL` (for example `https://openrouter.ai/api/v1`) and the API key your runner documents. The GoS project's own evaluation testing is done mainly this way. Embeddings for indexing and retrieval are separate; configure them in `.env` as in [`.env.example`](.env.example) (OpenRouter, direct OpenAI, Gemini, or Azure).
 
 Benchmark data is hosted externally and **not** included in this repository:
 
@@ -385,6 +349,105 @@ Benchmark data is hosted externally and **not** included in this repository:
 ```
 
 Selective downloads and workspace rebuild steps: **[DATA.md](DATA.md)**.
+
+<details>
+<summary><strong>Minimal Verification (end-to-end smoke test)</strong></summary>
+
+**Scope:** GoS retrieval against a real workspace, then **one** [SkillsBench](evaluation/skillsbench/README.md) task in Docker via [Harbor](https://github.com/harbor-ai/harbor). This is a smoke test, not a full benchmark sweep. For all tracks, see [evaluation/README.md](evaluation/README.md).
+
+**Prerequisites:**
+
+- `uv sync` and a filled `.env` (embedding provider for the workspace you use, plus **`GEMINI_API_KEY`** for the Harbor agent when using `gemini-cli`).
+- **Docker** running (Harbor drives the task container).
+- **Harbor** on your `PATH`, e.g. `uv tool install harbor` (see [evaluation/skillsbench/README.md](evaluation/skillsbench/README.md)).
+- **Skill library** `data/skillsets/skills_200/` (from `./scripts/download_data.sh --skillsets` or the full download script).
+- A **workspace** at `data/gos_workspace/skills_200_v1`: either build with `gos index` or download with `./scripts/download_data.sh --workspace` ([Quick Start, Step 3](#step-3-get-a-workspace-choose-one-path); full detail in [DATA.md](DATA.md)).
+
+The embedding model in `.env` must match how that workspace was built (same `GOS_EMBEDDING_MODEL` / `GOS_EMBEDDING_DIM` as at index time).
+
+**1. Retrieval smoke test**
+
+```bash
+uv run gos retrieve "unit tests with pytest" \
+  --workspace data/gos_workspace/skills_200_v1 --max-skills 3
+```
+
+You should see **`SKILL_HIT`** and at least one skill block. If you get errors about embedding dimension or missing keys, fix `.env` before continuing.
+
+**2. Generate a single graph-skills task pack**
+
+From the **repository root**, materialize one task (`dialogue-parser` is a small, standard example; it must exist under `evaluation/skillsbench/tasks/`):
+
+```bash
+uv run python evaluation/skillsbench/graphskills_benchmark.py \
+  --skillset-name skills_200 \
+  --task dialogue-parser \
+  --skip-allskills --skip-vectorskills \
+  --output-root evaluation/skillsbench/generated_verify
+```
+
+This writes `evaluation/skillsbench/generated_verify/tasks_graph_skills/dialogue-parser/` with the graph-retrieval sidecar and mounts your workspace into the task image.
+
+**3. Run that task with Harbor**
+
+Still from the repo, load keys then run Harbor **from `evaluation/skillsbench/`** so paths resolve like the rest of the eval docs:
+
+```bash
+cd evaluation/skillsbench
+set -a && source ../../.env && set +a
+harbor run --agent gemini-cli \
+  --model gemini/gemini-3-flash-preview \
+  --force-build \
+  -p generated_verify/tasks_graph_skills/dialogue-parser \
+  -o jobs/verify-sample
+```
+
+Use a `--model` string your Harbor agent accepts (often the same family as in `.env`). First run may spend time on **image build**.
+
+**4. What "success" looks like**
+
+- Harbor finishes with **`Errors: 0`** in the summary table.
+- A **`result.json`** appears under `evaluation/skillsbench/jobs/verify-sample/<timestamp>/`.
+- **Reward** may be `0.0`, partial (e.g. `0.5`), or `1.0` depending on the task and agent; that is normal. The goal of this minimal path is to confirm **retrieval, task packaging, Docker, and the agent all run**, not to maximize score.
+
+For more agents, configs, and batch YAML, see [evaluation/skillsbench/README.md](evaluation/skillsbench/README.md).
+
+</details>
+
+## Repository Layout
+
+```
+graph-of-skills/
+├── gos/                          # Core GoS package
+│   ├── core/                     #   Engine, retrieval, parsing, schema
+│   ├── interfaces/               #   CLI, MCP server, Claude Code plugin
+│   └── utils/                    #   Configuration (pydantic-settings)
+├── data/                         # Downloaded data (gitignored; see DATA.md)
+│   ├── skillsets/                #   Skill libraries (skills_200, 500, 1000, 2000)
+│   └── gos_workspace/            #   Indexed or prebuilt graph workspaces
+├── evaluation/                   # See evaluation/README.md
+│   ├── alfworld_run.py           #   ALFWorld benchmark runner
+│   ├── skill.py                  #   SkillModule adapter for GoS
+│   └── skillsbench/              #   SkillsBench — evaluation/skillsbench/README.md
+├── skills/                       # Agent bootstrap skills for retrieval
+├── scripts/                      # Utility scripts (data download, etc.)
+├── tests/                        # Test suite
+├── pyproject.toml                # Package definition & CLI entry points
+├── .env.example                  # Environment variable template
+├── DATA.md                       # Data & downloads
+└── CLAUDE.md                     # Claude Code / MCP integration guide
+```
+
+## Documentation
+
+| Document | What it covers |
+|----------|----------------|
+| [CLAUDE.md](CLAUDE.md) | **Claude Code integration**: MCP plugin setup, available tools, example workflows, configuration |
+| [DATA.md](DATA.md) | Downloading skill sets, SkillsBench tasks, and prebuilt workspaces (`scripts/download_data.sh`); rebuilding a workspace from source; packaging uploads for HuggingFace |
+| [evaluation/README.md](evaluation/README.md) | **Evaluation overview**: ALFWorld, SkillsBench runners, retrieval modes (`gos` / `vector` / `all_full` / `none`), environment setup for benchmark tracks |
+| [evaluation/skillsbench/README.md](evaluation/skillsbench/README.md) | **SkillsBench detail**: Harbor, Docker, generating task variants (`graphskills_benchmark.py`), batch configs, agents |
+| [`.env.example`](.env.example) | All `GOS_*` and provider variables for indexing, retrieval, and CLI |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Dev setup, tests, project layout for contributors |
 
 ## Citation
 
