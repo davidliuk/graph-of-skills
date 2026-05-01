@@ -5,7 +5,13 @@
 </p>
 
 <p align="center">
-  <em>Dawei Liu*, Zongxia Li*, Hongyang Du, Xiyang Wu, Shihang Gui, Yongbei Kuang, Lichao Sun</em>
+  <a href="https://davidliuk.github.io/blog/"><strong>Dawei Liu</strong></a><sup>*</sup> &middot; 
+  <a href="https://zli12321.github.io/"><strong>Zongxia Li</strong></a><sup>*</sup> &middot; 
+  <a href="https://hongyang-du.github.io/"><strong>Hongyang Du</strong></a> &middot; 
+  <a href="https://wuxiyang1996.github.io/"><strong>Xiyang Wu</strong></a> &middot; 
+  <strong>Shihang Gui</strong></a> &middot; 
+  <strong>Yongbei Kuang</strong></a> &middot; 
+  <a href="https://lichao-sun.github.io/"><strong>Lichao Sun</strong></a>
 </p>
 
 <p align="center">
