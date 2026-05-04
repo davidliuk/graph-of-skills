@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://davidliuk.github.io/blog/"><strong>Dawei Liu</strong></a><sup>*</sup> &middot; 
+  <a href="https://davidliuk.github.io/"><strong>Dawei Liu</strong></a><sup>*</sup> &middot; 
   <a href="https://zli12321.github.io/"><strong>Zongxia Li</strong></a><sup>*</sup> &middot; 
   <a href="https://hongyang-du.github.io/"><strong>Hongyang Du</strong></a> &middot; 
   <a href="https://wuxiyang1996.github.io/"><strong>Xiyang Wu</strong></a> &middot; 
@@ -71,6 +71,22 @@ GoS is evaluated on **SkillsBench** (87 dockerized coding tasks) and **ALFWorld*
 | | **+ GoS** | **34.4** | 1,379,773 | 715.6 | **93.6** | 46,462 | 64.7 |
 
 GoS achieves the **highest reward on every model** on both benchmarks while cutting input tokens by up to **56×** (ALFWorld, Claude Sonnet 4.5) vs. Vanilla Skills. For scalability and ablation analysis, see the [paper](https://arxiv.org/abs/2604.05333).
+
+## Citation
+
+If you find this work useful, please cite:
+
+```bibtex
+@misc{li2026graphskillsdependencyawarestructural,
+      title={Graph of Skills: Dependency-Aware Structural Retrieval for Massive Agent Skills}, 
+      author={Dawei Liu and Zongxia Li and Hongyang Du and Xiyang Wu and Shihang Gui and Yongbei Kuang and Lichao Sun},
+      year={2026},
+      eprint={2604.05333},
+      archivePrefix={arXiv},
+      primaryClass={cs.AI},
+      url={https://arxiv.org/abs/2604.05333}, 
+}
+```
 
 ## Installation
 
@@ -423,22 +439,6 @@ graph-of-skills/
 | [evaluation/skillsbench/README.md](evaluation/skillsbench/README.md) | **SkillsBench detail**: Harbor, Docker, generating task variants (`graphskills_benchmark.py`), batch configs, agents |
 | [`.env.example`](.env.example) | All `GOS_*` and provider variables for indexing, retrieval, and CLI |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Dev setup, tests, project layout for contributors |
-
-## Citation
-
-If you find this work useful, please cite:
-
-```bibtex
-@misc{li2026graphskillsdependencyawarestructural,
-      title={Graph of Skills: Dependency-Aware Structural Retrieval for Massive Agent Skills}, 
-      author={Dawei Liu and Zongxia Li and Hongyang Du and Xiyang Wu and Shihang Gui and Yongbei Kuang and Lichao Sun},
-      year={2026},
-      eprint={2604.05333},
-      archivePrefix={arXiv},
-      primaryClass={cs.AI},
-      url={https://arxiv.org/abs/2604.05333}, 
-}
-```
 
 ## License
 
