@@ -5,7 +5,7 @@ Thank you for your interest in contributing to Graph of Skills!
 ## Getting Started
 
 ```bash
-git clone https://github.com/graph-of-skills/graph-of-skills.git
+git clone https://github.com/davidliuk/graph-of-skills.git
 cd graph-of-skills
 uv sync
 cp .env.example .env    # fill in your API keys

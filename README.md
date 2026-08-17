@@ -99,7 +99,7 @@ If you find this work useful, please cite:
 ### Setup
 
 ```bash
-git clone https://github.com/graph-of-skills/graph-of-skills.git
+git clone https://github.com/davidliuk/graph-of-skills.git
 cd graph-of-skills
 uv sync
 cp .env.example .env   # then fill in your API keys
