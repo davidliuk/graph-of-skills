@@ -44,8 +44,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/graph-of-skills/graph-of-skills"
-Paper = "https://arxiv.org/abs/TODO"
+Homepage = "https://github.com/davidliuk/graph-of-skills"
+Paper = "https://arxiv.org/abs/2604.05333"
 Data = "https://huggingface.co/datasets/DLPenn/graph-of-skills-data"
 
 [project.scripts]
