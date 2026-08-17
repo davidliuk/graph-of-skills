@@ -81,9 +81,12 @@ def _build_test_engine(
     workspace: Path | None = None,
     retrieval_top_n: int | None = None,
     seed_top_k: int | None = None,
+    seed_candidate_top_k_semantic: int | None = None,
+    seed_candidate_top_k_lexical: int | None = None,
     max_skill_chars: int | None = None,
     max_context_chars: int | None = None,
     enable_semantic_linking: bool | None = None,
+    enable_query_rewrite: bool | None = None,
 ) -> SkillGraphRAG:
     return SkillGraphRAG(
         config=SkillGraphRAG.Config(
@@ -99,6 +102,19 @@ def _build_test_engine(
                 retrieval_top_n if retrieval_top_n is not None else cli.settings.RETRIEVAL_TOP_N
             ),
             seed_top_k=seed_top_k if seed_top_k is not None else cli.settings.SEED_TOP_K,
+            seed_candidate_top_k_semantic=(
+                seed_candidate_top_k_semantic
+                if seed_candidate_top_k_semantic is not None
+                else cli.settings.SEED_CANDIDATE_TOP_K_SEMANTIC
+            ),
+            seed_candidate_top_k_lexical=(
+                seed_candidate_top_k_lexical
+                if seed_candidate_top_k_lexical is not None
+                else cli.settings.SEED_CANDIDATE_TOP_K_LEXICAL
+            ),
+            enable_query_rewrite=(
+                False if enable_query_rewrite is None else enable_query_rewrite
+            ),
             max_skill_chars=(
                 max_skill_chars if max_skill_chars is not None else cli.settings.MAX_SKILL_CHARS
             ),

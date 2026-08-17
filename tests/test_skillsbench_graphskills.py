@@ -86,7 +86,7 @@ Render a chart.
         for edge in bundle["edges"]
     )
     assert all(
-        skill["source_path"].startswith("/opt/graphskills/library/")
+        skill["source_path"].startswith("/opt/graphskills/skills/")
         for skill in bundle["skills"]
     )
 
@@ -147,6 +147,9 @@ Render a chart image from a trend report.
         seed_top_k=3,
         max_skill_chars=160,
         max_context_chars=520,
+        seed_mode="lexical",
+        propagation_mode="ppr",
+        vector_store_path=None,
     )
 
     retrieved_names = [skill["name"] for skill in result["skills"]]
