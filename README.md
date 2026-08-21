@@ -25,7 +25,7 @@
 ---
 
 ## 🔥 Updates
-
+- **[2026-08-20]** Accept to **EMNLP 2026** 🎉.
 - **[2026-04-15]** Released a [Claude Code MCP plugin](skills/) for graph of skills retrieval — drop-in integration for Claude Code agents.
 - **[2026-04-07]** Paper released on [arXiv:2604.05333](https://arxiv.org/abs/2604.05333) and [HuggingFace Papers](https://huggingface.co/papers/2604.05333).
 - **[2026-04-06]** Code open-sourced on [GitHub](https://github.com/davidliuk/graph-of-skills).
