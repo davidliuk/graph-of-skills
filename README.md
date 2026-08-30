@@ -398,6 +398,7 @@ Set `GOS_SKILLS_DIR` to control path rewriting, so the same workspace can be ind
 | `gos query <query>` | Compact retrieval output (for debugging) |
 | `gos status` | Show workspace statistics |
 | `gos experiment` | Run built-in experiment presets |
+| `gos experiment-presets` | List available experiment presets |
 | `graphskills-query` | Agent-facing retrieval (rewrites `Source:` paths for containers) |
 | `gos-server` | Start the MCP server for tool-based retrieval |
 | `gos-claude` | Start the MCP server for Claude Code (auto-discovered via `.mcp.json`) |
@@ -517,8 +518,7 @@ graph-of-skills/
 ├── evaluation/                   # See evaluation/README.md
 │   ├── alfworld_run.py           #   ALFWorld benchmark runner
 │   ├── skill.py                  #   SkillModule adapter for GoS
-│   ├── analysis/                 #   Offline analyses: matched retrieval, graph
-│   │                             #   diagnostics, metadata stress, edge audit
+│   ├── analysis/                 #   Offline analyses — evaluation/analysis/README.md
 │   └── skillsbench/              #   SkillsBench — evaluation/skillsbench/README.md
 │       └── experiments/          #     Ablation conditions, batch configs, dashboard
 ├── skills/                       # Agent bootstrap skills for retrieval
@@ -537,6 +537,7 @@ graph-of-skills/
 | [CLAUDE.md](CLAUDE.md) | **Claude Code integration**: MCP plugin setup, available tools, example workflows, configuration |
 | [DATA.md](DATA.md) | Downloading skill sets, SkillsBench tasks, and prebuilt workspaces (`scripts/download_data.sh`); rebuilding a workspace from source; packaging uploads for HuggingFace |
 | [evaluation/README.md](evaluation/README.md) | **Evaluation overview**: ALFWorld, SkillsBench runners, retrieval modes (`gos` / `vector` / `all_full` / `none`), environment setup for benchmark tracks |
+| [evaluation/analysis/README.md](evaluation/analysis/README.md) | **Offline analysis tools**: graph diagnostics, build comparison, matched retrieval ablations, metadata stress, edge audit |
 | [evaluation/skillsbench/README.md](evaluation/skillsbench/README.md) | **SkillsBench detail**: Harbor, Docker, generating task variants (`graphskills_benchmark.py`), batch configs, agents |
 | [`.env.example`](.env.example) | All `GOS_*` and provider variables for indexing, retrieval, and CLI |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Dev setup, tests, project layout for contributors |
