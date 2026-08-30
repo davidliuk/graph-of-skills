@@ -4,11 +4,18 @@ import logging
 from pathlib import Path
 import re
 import shutil
+import time
 from typing import Any
 
 import typer
 from loguru import logger
-from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TaskProgressColumn,
+    TextColumn,
+)
 
 from gos.core.engine import (
     SkillGraphRAG,
@@ -16,6 +23,12 @@ from gos.core.engine import (
     build_default_llm_service,
 )
 from gos.core.parsing import parse_skill_document
+from gos.core.construction_report import write_construction_report
+from gos.core.relink import (
+    RelinkProgress,
+    load_relink_progress,
+    summarize_relink_usage,
+)
 from gos.experiments import (
     available_experiment_presets,
     format_experiment_report,
@@ -155,6 +168,7 @@ def _build_engine(
             else enable_semantic_linking
         ),
         dependency_match_threshold=settings.DEPENDENCY_MATCH_THRESHOLD,
+        relation_min_confidence=settings.RELATION_MIN_CONFIDENCE,
         ppr_damping=settings.PPR_DAMPING,
         ppr_max_iter=settings.PPR_MAX_ITER,
         ppr_tolerance=settings.PPR_TOLERANCE,
@@ -239,7 +253,9 @@ def _rewrite_source_paths(text: str, skills_dir: str) -> str:
         re.MULTILINE,
     )
     base = skills_dir.rstrip("/")
-    return pattern.sub(lambda m: f"{m.group(1)}{base}/{m.group(2)}/{skill_filename}", text)
+    return pattern.sub(
+        lambda m: f"{m.group(1)}{base}/{m.group(2)}/{skill_filename}", text
+    )
 
 
 def _render_bundle_output(bundle: Any, *, raw: bool, as_json: bool) -> str:
@@ -263,7 +279,9 @@ async def _sync_skill_documents(
     workspace.parent.mkdir(parents=True, exist_ok=True)
     engine = _build_engine(workspace=workspace)
     if engine.bootstrapped_from:
-        typer.echo(f"Bootstrapped workspace from existing graph: {engine.bootstrapped_from}")
+        typer.echo(
+            f"Bootstrapped workspace from existing graph: {engine.bootstrapped_from}"
+        )
 
     with Progress(
         SpinnerColumn(),
@@ -271,7 +289,9 @@ async def _sync_skill_documents(
         BarColumn(),
         TaskProgressColumn(),
     ) as progress:
-        collect_task = progress.add_task("[cyan]Preparing documents...", total=len(skill_documents))
+        collect_task = progress.add_task(
+            "[cyan]Preparing documents...", total=len(skill_documents)
+        )
         contents: list[str] = []
         metadatas: list[dict[str, str]] = []
         for _, content, metadata in skill_documents:
@@ -280,7 +300,11 @@ async def _sync_skill_documents(
             progress.update(collect_task, advance=1)
 
         link_task = progress.add_task("[magenta]Indexing and linking...", total=None)
+        build_started = time.perf_counter()
         sync_result = await engine.async_ensure_skills(contents, metadatas)
+        engine.construction_counters.wall_time_seconds += (
+            time.perf_counter() - build_started
+        )
         progress.update(link_task, completed=True)
 
     typer.echo(
@@ -290,12 +314,20 @@ async def _sync_skill_documents(
         f"updated={sync_result.updated_count}, "
         f"final_skills={sync_result.final_skill_count}"
     )
+    if settings.CONSTRUCTION_REPORT:
+        report_path = workspace / "construction_report.json"
+        await write_construction_report(engine, report_path)
+        typer.echo(f"Construction report: {report_path}")
 
 
 @app.command()
 def index(
-    path: Path = typer.Argument(..., help="Path to a directory of skill markdown files"),
-    clear: bool = typer.Option(False, "--clear", help="Clear the existing workspace first"),
+    path: Path = typer.Argument(
+        ..., help="Path to a directory of skill markdown files"
+    ),
+    clear: bool = typer.Option(
+        False, "--clear", help="Clear the existing workspace first"
+    ),
     workspace: Path = typer.Option(
         Path(settings.WORKING_DIR),
         "--workspace",
@@ -309,8 +341,12 @@ def index(
             shutil.rmtree(workspace)
             typer.echo(f"Cleared workspace: {workspace}")
 
-        typer.echo(f"Found {len(skill_documents)} valid skill documents. Starting indexing...")
-        await _sync_skill_documents(skill_documents=skill_documents, workspace=workspace)
+        typer.echo(
+            f"Found {len(skill_documents)} valid skill documents. Starting indexing..."
+        )
+        await _sync_skill_documents(
+            skill_documents=skill_documents, workspace=workspace
+        )
 
     skill_documents = _discover_skill_documents(path)
     asyncio.run(run_indexing())
@@ -333,10 +369,98 @@ def add(
     skill_documents = _resolve_skill_documents(path)
 
     async def run_add():
-        typer.echo(f"Adding {len(skill_documents)} skill document(s) into {workspace}...")
-        await _sync_skill_documents(skill_documents=skill_documents, workspace=workspace)
+        typer.echo(
+            f"Adding {len(skill_documents)} skill document(s) into {workspace}..."
+        )
+        await _sync_skill_documents(
+            skill_documents=skill_documents, workspace=workspace
+        )
 
     asyncio.run(run_add())
+
+
+@app.command()
+def relink(
+    workspace: Path = typer.Option(
+        Path(settings.WORKING_DIR),
+        "--workspace",
+        help="Workspace containing persisted skill nodes and embeddings.",
+    ),
+    concurrency: int = typer.Option(
+        settings.RELINK_CONCURRENCY,
+        "--concurrency",
+        min=1,
+        help="Maximum number of concurrent focus-level validators.",
+    ),
+    checkpoint_every: int = typer.Option(
+        settings.RELINK_CHECKPOINT_EVERY,
+        "--checkpoint-every",
+        min=1,
+        help="Completed focus nodes per durable graph checkpoint.",
+    ),
+    resume: bool = typer.Option(
+        True,
+        "--resume/--no-resume",
+        help="Resume a compatible relink progress ledger.",
+    ),
+    restart: bool = typer.Option(
+        False,
+        "--restart",
+        help="Clear edges and progress while preserving nodes and embeddings.",
+    ),
+):
+    """Build or resume graph edges from an existing node workspace."""
+
+    async def run_relink():
+        engine = _build_engine(workspace=workspace)
+        started = time.perf_counter()
+
+        def show_progress(progress: RelinkProgress) -> None:
+            usage_totals = summarize_relink_usage(progress.usage)
+            typer.echo(
+                "Relink checkpoint: "
+                f"completed={len(progress.completed_focus_names)}/"
+                f"{progress.total_focus_nodes} "
+                f"edges={progress.persisted_edge_count} "
+                f"failures={len(progress.failed_focus)} "
+                f"calls={usage_totals['calls']} "
+                f"input_tokens={usage_totals['input_tokens']} "
+                f"output_tokens={usage_totals['output_tokens']} "
+                f"cost=${usage_totals['cost_usd']:.4f} "
+                f"elapsed={time.perf_counter() - started:.1f}s"
+            )
+
+        result = await engine.async_relink_all(
+            concurrency=concurrency,
+            checkpoint_every=checkpoint_every,
+            resume=resume,
+            restart=restart,
+            progress_callback=show_progress,
+        )
+        final_progress = load_relink_progress(workspace / "relink_progress.json")
+        final_usage = summarize_relink_usage(
+            final_progress.usage if final_progress is not None else {}
+        )
+        typer.echo(
+            "Relink complete: "
+            f"completed={result.completed_focus_count}/{result.total_focus_count} "
+            f"processed={result.processed_focus_count} "
+            f"resumed={result.resumed_focus_count} "
+            f"edges={result.edge_count} "
+            f"failures={len(result.failed_focus)} "
+            f"calls={final_usage['calls']} "
+            f"input_tokens={final_usage['input_tokens']} "
+            f"output_tokens={final_usage['output_tokens']} "
+            f"cost=${final_usage['cost_usd']:.4f} "
+            f"elapsed={result.elapsed_seconds:.1f}s"
+        )
+        typer.echo(f"Relink event log: {workspace / 'relink_events.jsonl'}")
+        if settings.CONSTRUCTION_REPORT:
+            report_path = workspace / "construction_report.json"
+            await write_construction_report(engine, report_path)
+            typer.echo(f"Construction report: {report_path}")
+
+    asyncio.run(run_relink())
 
 
 @app.command()
@@ -353,8 +477,12 @@ def query(
         "--seed-candidate-top-k-lexical",
     ),
     max_skill_chars: int = typer.Option(settings.MAX_SKILL_CHARS, "--max-skill-chars"),
-    max_context_chars: int = typer.Option(settings.MAX_CONTEXT_CHARS, "--max-context-chars"),
-    raw: bool = typer.Option(False, "--raw", help="Print the rendered skill bundle instead of the summary"),
+    max_context_chars: int = typer.Option(
+        settings.MAX_CONTEXT_CHARS, "--max-context-chars"
+    ),
+    raw: bool = typer.Option(
+        False, "--raw", help="Print the rendered skill bundle instead of the summary"
+    ),
     workspace: Path = typer.Option(
         Path(settings.WORKING_DIR),
         "--workspace",
@@ -381,7 +509,9 @@ def query(
 
 @app.command()
 def retrieve(
-    prompt: str = typer.Argument(..., help="Task or subproblem description to retrieve skills for"),
+    prompt: str = typer.Argument(
+        ..., help="Task or subproblem description to retrieve skills for"
+    ),
     max_skills: int = typer.Option(settings.RETRIEVAL_TOP_N, "--max-skills"),
     seed_top_k: int = typer.Option(settings.SEED_TOP_K, "--seed-top-k"),
     seed_candidate_top_k_semantic: int = typer.Option(
@@ -393,8 +523,12 @@ def retrieve(
         "--seed-candidate-top-k-lexical",
     ),
     max_skill_chars: int = typer.Option(settings.MAX_SKILL_CHARS, "--max-skill-chars"),
-    max_context_chars: int = typer.Option(settings.MAX_CONTEXT_CHARS, "--max-context-chars"),
-    as_json: bool = typer.Option(False, "--json", help="Print the full retrieval bundle as JSON."),
+    max_context_chars: int = typer.Option(
+        settings.MAX_CONTEXT_CHARS, "--max-context-chars"
+    ),
+    as_json: bool = typer.Option(
+        False, "--json", help="Print the full retrieval bundle as JSON."
+    ),
     workspace: Path = typer.Option(
         Path(settings.WORKING_DIR),
         "--workspace",
@@ -483,7 +617,9 @@ def experiment(
         "--seed-candidate-top-k-lexical",
     ),
     max_skill_chars: int = typer.Option(settings.MAX_SKILL_CHARS, "--max-skill-chars"),
-    max_context_chars: int = typer.Option(settings.MAX_CONTEXT_CHARS, "--max-context-chars"),
+    max_context_chars: int = typer.Option(
+        settings.MAX_CONTEXT_CHARS, "--max-context-chars"
+    ),
     semantic_linking: bool = typer.Option(
         settings.ENABLE_SEMANTIC_LINKING,
         "--semantic-linking/--no-semantic-linking",
@@ -524,7 +660,9 @@ def experiment(
             enable_semantic_linking=semantic_linking,
         )
         if engine.bootstrapped_from:
-            typer.echo(f"Bootstrapped workspace from existing graph: {engine.bootstrapped_from}")
+            typer.echo(
+                f"Bootstrapped workspace from existing graph: {engine.bootstrapped_from}"
+            )
 
         report = await run_preset_experiment(
             engine,
@@ -560,7 +698,9 @@ def main() -> None:
 
 @graphskills_query_app.command()
 def graphskills_query(
-    prompt: str = typer.Argument(..., help="Task or subproblem description to retrieve skills for"),
+    prompt: str = typer.Argument(
+        ..., help="Task or subproblem description to retrieve skills for"
+    ),
     top_n: int = typer.Option(settings.RETRIEVAL_TOP_N, "--top-n"),
     seed_top_k: int = typer.Option(settings.SEED_TOP_K, "--seed-top-k"),
     seed_candidate_top_k_semantic: int = typer.Option(
@@ -572,8 +712,12 @@ def graphskills_query(
         "--seed-candidate-top-k-lexical",
     ),
     max_skill_chars: int = typer.Option(settings.MAX_SKILL_CHARS, "--max-skill-chars"),
-    max_context_chars: int = typer.Option(settings.MAX_CONTEXT_CHARS, "--max-context-chars"),
-    as_json: bool = typer.Option(False, "--json", help="Print the full retrieval bundle as JSON."),
+    max_context_chars: int = typer.Option(
+        settings.MAX_CONTEXT_CHARS, "--max-context-chars"
+    ),
+    as_json: bool = typer.Option(
+        False, "--json", help="Print the full retrieval bundle as JSON."
+    ),
     workspace: Path = typer.Option(
         Path(settings.WORKING_DIR),
         "--workspace",
@@ -604,11 +748,17 @@ def graphskills_query_main() -> None:
 
 @vectorskills_query_app.command()
 def vectorskills_query(
-    prompt: str = typer.Argument(..., help="Task or subproblem description to retrieve skills for"),
+    prompt: str = typer.Argument(
+        ..., help="Task or subproblem description to retrieve skills for"
+    ),
     top_n: int = typer.Option(settings.RETRIEVAL_TOP_N, "--top-n"),
     max_skill_chars: int = typer.Option(settings.MAX_SKILL_CHARS, "--max-skill-chars"),
-    max_context_chars: int = typer.Option(settings.MAX_CONTEXT_CHARS, "--max-context-chars"),
-    as_json: bool = typer.Option(False, "--json", help="Print the full retrieval bundle as JSON."),
+    max_context_chars: int = typer.Option(
+        settings.MAX_CONTEXT_CHARS, "--max-context-chars"
+    ),
+    as_json: bool = typer.Option(
+        False, "--json", help="Print the full retrieval bundle as JSON."
+    ),
     workspace: Path = typer.Option(
         Path(settings.WORKING_DIR),
         "--workspace",

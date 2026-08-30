@@ -40,6 +40,7 @@ dependencies = [
     "pyyaml>=6.0.1,<7.0.0",
     "rich>=13.7.1,<15.0.0",
     "strictyaml>=1.7.3,<2.0.0",
+    "truststore>=0.10.4,<1.0.0",
     "typer>=0.12.3,<1.0.0",
 ]
 

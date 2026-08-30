@@ -44,6 +44,11 @@ data/gos_workspace/
 data/hf_staging/
 evaluation/skillsbench/tasks/
 
+# Experiment run artifacts (graphs, telemetry, retrieval dumps)
+data/analysis/
+data/experiments/
+data/rebuttal/
+
 # Generated benchmark task directories
 generated_*/
 
@@ -57,6 +62,10 @@ gos_workspace/
 tmp_*/
 .tmp_*/
 .pipeline/
+
+# Internal working notes: design plans, specs, experiment status, review-process
+# drafts. Kept locally, not published.
+docs/
 
 # Misc
 instance.json

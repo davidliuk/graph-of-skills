@@ -17,9 +17,13 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "openrouter/google/gemini-2.5-flash"
     EMBEDDING_MODEL: str = "openai/text-embedding-3-large"
     EMBEDDING_DIM: int = 3072
+    EMBEDDING_CONCURRENCY: int = 4
+    EXTRACTION_CONCURRENCY: int = 6
     GEMINI_API_KEY: SecretStr | None = Field(default=None, alias="GEMINI_API_KEY")
     OPENAI_API_KEY: SecretStr | None = Field(default=None, alias="OPENAI_API_KEY")
-    OPENROUTER_API_KEY: SecretStr | None = Field(default=None, alias="OPENROUTER_API_KEY")
+    OPENROUTER_API_KEY: SecretStr | None = Field(
+        default=None, alias="OPENROUTER_API_KEY"
+    )
     OPENAI_BASE_URL: str | None = Field(default=None, alias="OPENAI_BASE_URL")
 
     LINK_TOP_K: int = 8
@@ -28,6 +32,11 @@ class Settings(BaseSettings):
     USE_FULL_MARKDOWN: bool = True
     ENABLE_SEMANTIC_LINKING: bool = True
     DEPENDENCY_MATCH_THRESHOLD: float = 0.6
+    RELATION_MIN_CONFIDENCE: float = 0.75
+    OPENROUTER_RESPONSE_CACHE: bool = True
+    CONSTRUCTION_REPORT: bool = True
+    RELINK_CONCURRENCY: int = 8
+    RELINK_CHECKPOINT_EVERY: int = 10
 
     PPR_DAMPING: float = 0.2
     PPR_MAX_ITER: int = 50

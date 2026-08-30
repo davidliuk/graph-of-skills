@@ -10,6 +10,15 @@ def test_search_and_link_prompt_preserves_json_example():
     assert '{"relations": []}' in prompt
 
 
+def test_search_and_link_prompt_defines_direction_scope_and_evidence():
+    system_prompt = PROMPTS["search_and_link_system"]
+
+    assert "producer" in system_prompt.lower()
+    assert "earlier" in system_prompt.lower()
+    assert "focus skill" in system_prompt.lower()
+    assert "evidence" in system_prompt.lower()
+
+
 def test_skill_extraction_prompt_is_minimal_retrieval_schema():
     system_prompt = PROMPTS["skill_extraction_system"]
 

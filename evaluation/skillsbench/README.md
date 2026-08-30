@@ -61,6 +61,49 @@ scripts/harbor_run_with_env.sh -c experiments/configs/graphskills/codex.yaml
 | OpenAI Codex | `codex.yaml` | Uses `--model openai/gpt-5.2-codex` |
 | Claude Code | `claude-code.yaml` | Requires `ANTHROPIC_AUTH_TOKEN` |
 | Gemini CLI | `gemini-cli.yaml` | Requires `GEMINI_API_KEY` |
+| TRAE CLI | `configs/traex/*.yaml` | Uses the authenticated host `traex` executable; no OpenAI API key is required |
+
+## Running with local TRAE CLI (GPT-5.2)
+
+The custom Harbor agent in `agents/traex_host.py` runs the host-side TRAE CLI while
+the benchmark remains isolated in Docker. It mirrors the active task workspace through
+Harbor's `/logs/agent` mount and gives TRAE a task-scoped `./task-exec` wrapper for
+commands that must run inside the benchmark container.
+
+Requirements:
+
+```bash
+traex login status
+traex --version
+docker info
+```
+
+Run the end-to-end sanity task first. TRAE model startup can have a long tail, so the
+config uses a 5x task timeout and stores live CLI output in each trial's
+`agent/traex.jsonl`.
+
+```bash
+PYTHONPATH="$PWD" uv run --project evaluation/skillsbench harbor run \
+  -c evaluation/skillsbench/experiments/configs/traex/smoke.yaml
+```
+
+Generate and run one matched lexical ablation condition:
+
+```bash
+uv run python evaluation/skillsbench/scripts/run_traex_ablation.py \
+  --condition lexical-reverse-ppr \
+  --task dialogue-parser \
+  --attempts 1 \
+  --execute
+```
+
+Omit `--execute` to print the exact generation and Harbor commands. Use
+`--skip-generate` to reuse an existing generated dataset, and adjust slow or flaky local
+model service behavior with `--timeout-multiplier`.
+
+For paper reporting, label these runs **TRAE CLI (GPT-5.2; Codex harness mode)**. Do not
+merge them into an OpenAI Codex/API row: the model family may match, but the provider,
+authentication path, CLI version, and harness are separate experimental factors.
 
 ## Inspecting Results
 
@@ -97,6 +140,7 @@ skillsbench/
 ├── graphskills_assets/          # Assets bundled during task generation
 ├── experiments/
 │   └── configs/                 # Harbor YAML configs per condition & agent
+├── agents/                      # Custom Harbor agents, including host TRAE CLI
 ├── generated_skills*/           # Generated task variants (gitignored)
 ├── scripts/                     # Benchmark maintenance scripts
 ├── tasks/                       # Base benchmark tasks (cloned from SkillsBench)

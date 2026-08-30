@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import json
+import math
+import re
 from typing import Any, Iterable
 
 from fast_graphrag._types import BTNode, BTEdge, TSerializable
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 
 def _split_multivalue(text: str) -> list[str]:
@@ -228,7 +230,9 @@ class SkillNode(BTNode, TSerializable):
             nodes_list = list(nodes)
             return {
                 "description": [item.description for item in nodes_list],
-                "one_line_capability": [item.one_line_capability for item in nodes_list],
+                "one_line_capability": [
+                    item.one_line_capability for item in nodes_list
+                ],
                 "inputs": [item.inputs for item in nodes_list],
                 "outputs": [item.outputs for item in nodes_list],
                 "input_schema_json": [item.input_schema_json for item in nodes_list],
@@ -249,15 +253,61 @@ class SkillNode(BTNode, TSerializable):
         return {}
 
 
+VALID_RELATION_TYPES = frozenset({"dependency", "workflow", "semantic", "alternative"})
+VALID_EDGE_PROVENANCE = frozenset({"deterministic_io", "llm_validated"})
+
+
 @dataclass
 class SkillEdge(BTEdge, TSerializable):
     description: str = ""
-    type: str = "dependency"
+    type: str = ""
     weight: float = 1.0
     confidence: float = 1.0
+    provenance: str = "deterministic_io"
+    evidence: str = ""
+    validator_model: str = ""
     chunks: list[Any] = field(default_factory=list)
 
-    F_TO_CONTEXT = ["source", "target", "description", "type", "weight", "confidence"]
+    F_TO_CONTEXT = [
+        "source",
+        "target",
+        "description",
+        "type",
+        "weight",
+        "confidence",
+        "provenance",
+        "evidence",
+        "validator_model",
+    ]
+
+    def __post_init__(self) -> None:
+        self.source = str(self.source or "").strip()
+        self.target = str(self.target or "").strip()
+        self.description = str(self.description or "").strip()
+        self.type = str(self.type or "").strip().lower()
+        self.provenance = str(self.provenance or "").strip().lower()
+        self.evidence = str(self.evidence or "").strip()
+        self.validator_model = str(self.validator_model or "").strip()
+
+        if not self.source or not self.target or self.source == self.target:
+            raise ValueError("Skill edges require two distinct non-empty endpoints.")
+        if self.type not in VALID_RELATION_TYPES:
+            raise ValueError(
+                f"Invalid skill relation type: {self.type or '<missing>'}."
+            )
+        if not self.description or self.description.lower() == "is":
+            raise ValueError("Invalid or legacy skill edge description.")
+        if self.provenance not in VALID_EDGE_PROVENANCE:
+            raise ValueError(
+                f"Invalid edge provenance: {self.provenance or '<missing>'}."
+            )
+
+        self.weight = float(self.weight)
+        self.confidence = float(self.confidence)
+        if not math.isfinite(self.weight) or self.weight <= 0:
+            raise ValueError("Skill edge weight must be finite and positive.")
+        if not math.isfinite(self.confidence) or not 0 <= self.confidence <= 1:
+            raise ValueError("Skill edge confidence must be finite and within [0, 1].")
 
     @staticmethod
     def to_attrs(
@@ -271,6 +321,9 @@ class SkillEdge(BTEdge, TSerializable):
                 "type": edge.type,
                 "weight": edge.weight,
                 "confidence": edge.confidence,
+                "provenance": edge.provenance,
+                "evidence": edge.evidence,
+                "validator_model": edge.validator_model,
                 "chunks": edge.chunks if edge.chunks is not None else [],
             }
         if edges is not None:
@@ -280,14 +333,22 @@ class SkillEdge(BTEdge, TSerializable):
                 "type": [item.type for item in edges_list],
                 "weight": [item.weight for item in edges_list],
                 "confidence": [item.confidence for item in edges_list],
-                "chunks": [item.chunks if item.chunks is not None else [] for item in edges_list],
+                "provenance": [item.provenance for item in edges_list],
+                "evidence": [item.evidence for item in edges_list],
+                "validator_model": [item.validator_model for item in edges_list],
+                "chunks": [
+                    item.chunks if item.chunks is not None else []
+                    for item in edges_list
+                ],
             }
         return {}
 
 
 class GOSSkill(BaseModel):
     name: str = Field(..., description="The unique name of the skill")
-    description: str = Field(..., description="Detailed description of what the skill does")
+    description: str = Field(
+        ..., description="Detailed description of what the skill does"
+    )
     one_line_capability: str = ""
     inputs: list[str] = Field(default_factory=list)
     outputs: list[str] = Field(default_factory=list)
@@ -303,6 +364,60 @@ class GOSSkill(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
     skill_id: str = ""
 
+    @field_validator("inputs", "outputs", mode="before")
+    @classmethod
+    def normalize_artifact_lists(
+        cls,
+        value: Any,
+        info: ValidationInfo,
+    ) -> Any:
+        if not isinstance(value, list):
+            return value
+
+        control_input_names = {
+            "config",
+            "destination",
+            "duration",
+            "help",
+            "max-tokens",
+            "min-duration",
+            "output",
+            "output-path",
+            "sample-rate",
+            "start-time",
+            "threshold",
+            "threshold-ratio",
+            "verbose",
+            "window-size",
+        }
+        normalized: list[str] = []
+        for item in value:
+            if isinstance(item, str):
+                text = item.strip()
+            elif isinstance(item, dict):
+                name = str(item.get("name") or "").strip()
+                normalized_name = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+                description = str(item.get("description") or "").strip()
+                if info.field_name == "inputs" and (
+                    normalized_name in control_input_names
+                    or "path to output" in description.lower()
+                    or "output path" in description.lower()
+                ):
+                    continue
+                artifact_format = str(item.get("format") or "").strip()
+                artifact_type = str(item.get("type") or "").strip()
+                text = description or " ".join(
+                    part for part in (name, artifact_format, artifact_type) if part
+                )
+            else:
+                text = str(item).strip()
+
+            if text and text.lower() not in {
+                existing.lower() for existing in normalized
+            }:
+                normalized.append(text)
+        return normalized
+
 
 class GOSRelation(BaseModel):
     source: str = Field(..., description="The name of the source skill")
@@ -313,6 +428,10 @@ class GOSRelation(BaseModel):
         description="Type: 'dependency', 'workflow', 'semantic', or 'alternative'",
     )
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    evidence: list[str] = Field(
+        default_factory=list,
+        description="Short concrete evidence supporting the relation and its direction",
+    )
 
 
 class GOSRelationList(BaseModel):
@@ -327,17 +446,34 @@ class GOSGraph(BaseModel):
 class QuerySchema(BaseModel):
     goal: str = Field(default="", description="Concise statement of the task intent")
     task_name: str = Field(default="", description="Short task slug when obvious")
-    domain: list[str] = Field(default_factory=list, description="Narrow technical domains")
-    operations: list[str] = Field(default_factory=list, description="Concrete operations, algorithms, or APIs")
-    artifacts: list[str] = Field(default_factory=list, description="Files, formats, interfaces, or concrete objects")
-    constraints: list[str] = Field(default_factory=list, description="Acceptance constraints and invariants")
-    keywords: list[str] = Field(default_factory=list, description="High-value retrieval terms or short phrases")
+    domain: list[str] = Field(
+        default_factory=list, description="Narrow technical domains"
+    )
+    operations: list[str] = Field(
+        default_factory=list, description="Concrete operations, algorithms, or APIs"
+    )
+    artifacts: list[str] = Field(
+        default_factory=list,
+        description="Files, formats, interfaces, or concrete objects",
+    )
+    constraints: list[str] = Field(
+        default_factory=list, description="Acceptance constraints and invariants"
+    )
+    keywords: list[str] = Field(
+        default_factory=list, description="High-value retrieval terms or short phrases"
+    )
 
     def to_query_text(self) -> str:
         parts: list[str] = []
         if self.goal:
             parts.append(self.goal)
-        for values in (self.domain, self.operations, self.artifacts, self.constraints, self.keywords):
+        for values in (
+            self.domain,
+            self.operations,
+            self.artifacts,
+            self.constraints,
+            self.keywords,
+        ):
             if values:
                 parts.extend(values)
         if self.task_name:

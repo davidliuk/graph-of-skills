@@ -19,7 +19,9 @@ GoS ships with a built-in [MCP](https://modelcontextprotocol.io/) server that gi
    # Edit .env: set OPENAI_API_KEY or GEMINI_API_KEY
    ```
 
-3. **Get a workspace** — either download prebuilt or build from source:
+3. **Get a workspace** — build from source for the current typed-directed
+   constructor. Downloaded `*_v1` workspaces are legacy reproduction artifacts
+   and are rejected because their undirected edges cannot be repaired safely:
 
    ```bash
    # Option A: Download prebuilt workspaces

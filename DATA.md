@@ -10,6 +10,12 @@ Evaluation data is **not** included in this repository. The download script fetc
 | Benchmark tasks (87 coding tasks) | [benchflow-ai/skillsbench](https://github.com/benchflow-ai/skillsbench) | `evaluation/skillsbench/tasks/` | 580 MB |
 | Prebuilt GoS workspaces (`gos_workspace_skills_*_v1.tar.gz`) | [HuggingFace](https://huggingface.co/datasets/DLPenn/graph-of-skills-data) | `data/gos_workspace/skills_{200,500,1000,2000}_v1/` | varies |
 
+> **Legacy workspace warning:** the `*_v1` workspace archives contain
+> undirected graphs from the earlier cleanup implementation. They may be used
+> only for reproducing old results; the current typed-directed storage rejects
+> them because dependency direction cannot be reconstructed reliably. Rebuild
+> from the corresponding skill library for current experiments.
+
 ## Download Everything
 
 ```bash

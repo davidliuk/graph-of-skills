@@ -15,6 +15,7 @@
 </p>
 
 <p align="center">
+  <a href="https://2026.emnlp.org/"><img src="https://img.shields.io/badge/EMNLP%202026-Main%20Conference-8B0000" alt="EMNLP 2026"></a>
   <a href="https://arxiv.org/abs/2604.05333"><img src="https://img.shields.io/badge/arXiv-2604.05333-b31b1b?logo=arxiv" alt="Paper"></a>
   <a href="https://huggingface.co/papers/2604.05333"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Paper-yellow" alt="HF Paper"></a>
   <a href="https://huggingface.co/datasets/DLPenn/graph-of-skills-data"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Data-yellow" alt="Data"></a>
@@ -25,7 +26,7 @@
 ---
 
 ## 🔥 Updates
-- **[2026-08-20]** Accept to **EMNLP 2026** 🎉.
+- **[2026-08-20]** 🎉 **Graph of Skills is accepted to EMNLP 2026 Main Conference** (Budapest). The camera-ready adds a component ablation, a budget-matched retrieval study, library-size scaling to 2,000 skills, and graph-construction diagnostics — all summarized in [Results](#results).
 - **[2026-04-15]** Released a [Claude Code MCP plugin](skills/) for graph of skills retrieval — drop-in integration for Claude Code agents.
 - **[2026-04-07]** Paper released on [arXiv:2604.05333](https://arxiv.org/abs/2604.05333) and [HuggingFace Papers](https://huggingface.co/papers/2604.05333).
 - **[2026-04-06]** Code open-sourced on [GitHub](https://github.com/davidliuk/graph-of-skills).
@@ -56,37 +57,109 @@ Graph of Skills builds a **skill graph** offline from a library of `SKILL.md` do
 
 ## Results
 
-GoS is evaluated on **SkillsBench** (87 dockerized coding tasks) and **ALFWorld** (134 household games) across three model families. **R** = average reward (%), **T** = input tokens, **S** = runtime (s). ↑ higher is better, ↓ lower is better.
+GoS is evaluated on **SkillsBench** (87 dockerized coding tasks) and **ALFWorld** (140 episodes) across three model families. **R** = average reward (%), **T** = average total tokens (uncached input + cached input + output), **S** = agent-only runtime (s). ↑ higher is better, ↓ lower is better. All numbers are means over two runs per setting.
+
+### Main results (end-to-end)
 
 | Model | Method | SB R↑ | SB T↓ | SB S↓ | AW R↑ | AW T↓ | AW S↓ |
 |-------|--------|------:|------:|------:|------:|------:|------:|
 | Claude Sonnet 4.5 | Vanilla Skills | 25.0 | 967,791 | 465.8 | 89.3 | 1,524,401 | 53.2 |
 | | Vector Skills | 19.3 | 894,640 | **357.3** | 93.6 | 28,407 | **37.8** |
-| | **+ GoS** | **31.0** | **860,315** | 364.9 | **97.9** | **27,215** | 49.2 |
+| | **GoS (ours)** | **31.0** | **860,315** | 364.9 | **97.9** | **27,215** | 49.2 |
 | MiniMax M2.7 | Vanilla Skills | 17.2 | 942,113 | 580.7 | 47.1 | 2,184,823 | 88.6 |
 | | Vector Skills | 10.4 | **852,881** | 552.9 | 50.7 | 66,109 | 73.4 |
-| | **+ GoS** | **18.7** | 867,452 | **502.5** | **54.3** | **65,227** | **68.8** |
+| | **GoS (ours)** | **18.7** | 867,452 | **502.5** | **54.3** | **65,227** | **68.8** |
 | GPT-5.2 Codex | Vanilla Skills | 27.4 | 3,187,749 | **686.8** | 89.3 | 1,435,614 | 83.3 |
 | | Vector Skills | 21.5 | **1,243,648** | 773.0 | 92.9 | **34,436** | **57.0** |
-| | **+ GoS** | **34.4** | 1,379,773 | 715.6 | **93.6** | 46,462 | 64.7 |
+| | **GoS (ours)** | **34.4** | 1,379,773 | 715.6 | **93.6** | 46,462 | 64.7 |
 
-GoS achieves the **highest reward on every model** on both benchmarks while cutting input tokens by up to **56×** (ALFWorld, Claude Sonnet 4.5) vs. Vanilla Skills. For scalability and ablation analysis, see the [paper](https://arxiv.org/abs/2604.05333).
+GoS achieves the **highest reward on every model** on both benchmarks while cutting total tokens by up to **56×** (ALFWorld, Claude Sonnet 4.5) vs. Vanilla Skills.
+
+### Scaling with library size
+
+Reward and cost as the repository grows (SkillsBench, GPT-5.2 Codex). **T** in millions of tokens.
+
+| Skills | Method | R↑ | T (M)↓ | S↓ |
+|-------:|--------|---:|-------:|---:|
+| 200 | Vanilla Skills | **32.5** | 1.85 | **701.6** |
+| | Vector Skills | 21.2 | **1.06** | 833.8 |
+| | **GoS (ours)** | 32.1 | 1.36 | 731.2 |
+| 500 | Vanilla Skills | 26.0 | 1.93 | **756.8** |
+| | Vector Skills | 20.7 | **1.10** | 849.5 |
+| | **GoS (ours)** | **31.4** | 1.16 | 890.3 |
+| 1,000 | Vanilla Skills | 27.4 | 3.19 | **686.8** |
+| | Vector Skills | 21.5 | **1.24** | 773.0 |
+| | **GoS (ours)** | **34.4** | 1.38 | 715.6 |
+| 2,000 | Vanilla Skills | 26.7 | 5.84 | **733.5** |
+| | Vector Skills | 23.8 | **1.11** | 799.8 |
+| | **GoS (ours)** | **31.3** | 1.14 | 788.0 |
+
+From 500 skills onward GoS leads both baselines by 5.4, 7.0, and 4.6 reward points. Flat exposure rises from 1.93M to 5.84M tokens (~3x) across the same range while both retrievers stay near-constant — the scaling burden is in the prompt, not in retrieval.
+
+### Component ablation
+
+Full SkillsBench, GPT-5.2 Codex, 1,000-skill library.
+
+| Variant | R↑ | T (M)↓ | S↓ |
+|---------|---:|-------:|---:|
+| **Full GoS** (reverse-aware PPR) | **34.4** | 1.38 | **715.6** |
+| Forward-only PPR (γ_r = 0) | 25.3 | 1.20 | 742.7 |
+| w/o graph propagation | 29.3 | **0.89** | 766.2 |
+| w/o lexical + rerank | 26.7 | 1.01 | 747.7 |
+
+**Traversal direction matters more than the graph itself.** Replacing reverse traversal with forward propagation costs **9.1** reward points — a *larger* loss than removing graph propagation entirely (5.1). The gain comes from traversing dependencies backwards, not from graph diffusion as such.
+
+### Isolating the graph operation
+
+The table above compares full agent runs, which entangle the graph with hydration, reranking, and the agent interface. This budget-matched offline study holds seeding, reranker, top-N selection, character budgets, and hydration fixed across all arms, so **only the graph operation changes** (200-skill library, 87 queries).
+
+| Retrieval operation | R_avail↑ | R_full↑ | C↑ | D↑ |
+|---------------------|---------:|--------:|---:|---:|
+| **Reverse-aware PPR (GoS)** | **0.575** | **0.502** | **0.421** | **0.654** |
+| Forward-only PPR (γ_r = 0) | 0.490 | 0.428 | 0.311 | 0.362 |
+| No-Graph (matched flat) | 0.542 | 0.473 | 0.368 | 0.481 |
+| One-Hop dependency | 0.542 | 0.473 | 0.368 | 0.481 |
+
+`R_avail` / `R_full` = available- and full-oracle recall, `C` = exact bundle completeness, `D` = dependency-pair co-recovery. The same ordering reproduces at retrieval level: forward propagation is *worse than not using the graph at all*, and dependency-pair co-recovery falls from **0.654 to 0.362**.
+
+### Construction cost and robustness
+
+- **One-time offline cost:** $0.29 at 200 skills, $2.36 at 2,000. Online propagation adds ~1.5 ms at p50.
+- **Threshold is not delicate:** sweeping the acceptance threshold ζ from 0.4 to 0.8 moves the deterministic edge count from 172 to 46 while changing recall by less than 0.005.
+- **Documentation quality is the main limiting factor:** dropping half of all I/O fields costs 0.024 recall, whereas dropping half of the descriptions costs 0.146.
+
 
 ## Citation
 
-If you find this work useful, please cite:
+If you find this work useful, please cite the EMNLP 2026 version:
 
 ```bibtex
-@misc{li2026graphskillsdependencyawarestructural,
-      title={Graph of Skills: Dependency-Aware Structural Retrieval for Massive Agent Skills}, 
-      author={Dawei Liu and Zongxia Li and Hongyang Du and Xiyang Wu and Shihang Gui and Yongbei Kuang and Lichao Sun},
-      year={2026},
-      eprint={2604.05333},
-      archivePrefix={arXiv},
-      primaryClass={cs.AI},
-      url={https://arxiv.org/abs/2604.05333}, 
+@inproceedings{liu2026graphofskills,
+  title     = {Graph-of-Skills: Dependency-Aware Structural Retrieval for Massive Agent Skills},
+  author    = {Liu, Dawei and Li, Zongxia and Du, Hongyang and Wu, Xiyang and
+               Gui, Shihang and Kuang, Yongbei and Sun, Lichao},
+  booktitle = {Proceedings of the 2026 Conference on Empirical Methods in Natural Language Processing (EMNLP)},
+  year      = {2026}
 }
 ```
+
+<details>
+<summary>arXiv preprint</summary>
+
+```bibtex
+@misc{liu2026graphofskillsarxiv,
+  title         = {Graph-of-Skills: Dependency-Aware Structural Retrieval for Massive Agent Skills},
+  author        = {Dawei Liu and Zongxia Li and Hongyang Du and Xiyang Wu and
+                   Shihang Gui and Yongbei Kuang and Lichao Sun},
+  year          = {2026},
+  eprint        = {2604.05333},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.AI},
+  url           = {https://arxiv.org/abs/2604.05333}
+}
+```
+
+</details>
 
 ## Installation
 
@@ -114,6 +187,10 @@ OPENAI_API_KEY=sk-...
 GOS_EMBEDDING_MODEL=openai/text-embedding-3-large
 GOS_EMBEDDING_DIM=3072
 ```
+
+OpenRouter exact-response caching is enabled by default for reproducible retries during
+indexing (`GOS_OPENROUTER_RESPONSE_CACHE=true`). Cached responses must be disabled or
+isolated when repeated graph builds are intended to measure LLM construction variance.
 </details>
 
 <details>
@@ -204,6 +281,12 @@ Use the matching pair for other sets (e.g. `skills_1000` → `data/gos_workspace
 ./scripts/download_data.sh --workspace
 ```
 
+> **Compatibility note:** the legacy `*_v1` archives were serialized by an
+> undirected cleanup pipeline and are retained only for reproducing earlier
+> results. The repaired typed-directed constructor rejects them because edge
+> direction cannot be recovered safely. Build a fresh workspace from the
+> downloaded skill library for current GoS retrieval and new experiments.
+
 See **[DATA.md](DATA.md)** for which `gos_workspace_skills_*_v1.tar.gz` files exist on the Hub and how they map to `data/gos_workspace/`.
 
 ### Step 4: Retrieve
@@ -218,7 +301,21 @@ uv run gos retrieve "parse binary STL file, calculate volume and mass" \
 ```bash
 uv run gos status --workspace data/gos_workspace/skills_200_v1
 uv run gos add path/to/NEW_SKILL.md --workspace data/gos_workspace/skills_200_v1
+uv run gos relink --workspace data/gos_workspace/skills_200_v1 \
+  --concurrency 8 --checkpoint-every 10 --resume
 ```
+
+`gos relink` writes three secret-free telemetry artifacts beside the graph:
+
+- `relink_progress.json`: atomic resume ledger and cumulative counters;
+- `relink_events.jsonl`: append-only attempt/checkpoint events with token,
+  cost, timing, throughput, per-batch focus results, and failures;
+- `construction_report.json`: final graph, provenance, configuration, aggregate
+  usage, stage timing, and throughput summary.
+
+The console checkpoint line also reports cumulative calls, input/output tokens,
+provider cost, failures, edges, and elapsed wall time. Logs never include API
+keys, request headers, prompts, raw skill documents, or model responses.
 
 ### Step 6: What to run next
 
@@ -296,6 +393,7 @@ Set `GOS_SKILLS_DIR` to control path rewriting, so the same workspace can be ind
 |---------|-------------|
 | `gos index <dir>` | Build a graph workspace from a skill directory |
 | `gos add <file>` | Add a single skill to an existing workspace |
+| `gos relink` | Build/resume edges with bounded concurrency and durable telemetry |
 | `gos retrieve <query>` | Retrieve a ranked skill bundle for a query |
 | `gos query <query>` | Compact retrieval output (for debugging) |
 | `gos status` | Show workspace statistics |
@@ -328,7 +426,7 @@ We evaluate GoS on two benchmarks:
 
 | Benchmark | Type | Tasks |
 |-----------|------|-------|
-| **ALFWorld** | Interactive household tasks | 134 games |
+| **ALFWorld** | Interactive household tasks | 140 episodes |
 | **SkillsBench** | Dockerized coding tasks | 87 tasks |
 
 For **running these evaluations**, we recommend routing the agent's chat / completion API through [OpenRouter](https://openrouter.ai/): use an OpenAI-compatible `BASE_URL` (for example `https://openrouter.ai/api/v1`) and the API key your runner documents. The GoS project's own evaluation testing is done mainly this way. Embeddings for indexing and retrieval are separate; configure them in `.env` as in [`.env.example`](.env.example) (OpenRouter, direct OpenAI, Gemini, or Azure).
@@ -419,7 +517,10 @@ graph-of-skills/
 ├── evaluation/                   # See evaluation/README.md
 │   ├── alfworld_run.py           #   ALFWorld benchmark runner
 │   ├── skill.py                  #   SkillModule adapter for GoS
+│   ├── analysis/                 #   Offline analyses: matched retrieval, graph
+│   │                             #   diagnostics, metadata stress, edge audit
 │   └── skillsbench/              #   SkillsBench — evaluation/skillsbench/README.md
+│       └── experiments/          #     Ablation conditions, batch configs, dashboard
 ├── skills/                       # Agent bootstrap skills for retrieval
 ├── scripts/                      # Utility scripts (data download, etc.)
 ├── tests/                        # Test suite

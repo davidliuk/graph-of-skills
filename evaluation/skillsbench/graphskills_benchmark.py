@@ -10,14 +10,23 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import yaml
 
 SKILLSBENCH_ROOT = Path(__file__).resolve().parent
 REPO_ROOT = SKILLSBENCH_ROOT.parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from evaluation.skillsbench.experiments.ablation_conditions import (  # noqa: E402
+    ABLATION_CONDITIONS,
+    get_condition,
+    render_condition_environment,
+)
+from evaluation.analysis.workspace_bundle import (  # noqa: E402
+    load_workspace_bundle,
+    write_workspace_vector_store,
+)
 from gos.core.parsing import parse_skill_document  # noqa: E402
-
 
 TOKEN_STOPWORDS = {
     "a",
@@ -113,9 +122,7 @@ def schema_overlap_score(
             if producer_norm and producer_norm == consumer_norm:
                 return 1.0, [producer_norm]
 
-            if producer_norm and consumer_norm and (
-                producer_norm in consumer_norm or consumer_norm in producer_norm
-            ):
+            if producer_norm and consumer_norm and (producer_norm in consumer_norm or consumer_norm in producer_norm):
                 candidate = {producer_norm, consumer_norm}
                 return 0.85, sorted(candidate)
 
@@ -268,10 +275,7 @@ def build_graph_bundle(
                             "type": "semantic",
                             "weight": float(semantic_score),
                             "confidence": float(semantic_score),
-                            "description": (
-                                "They share a narrow capability cluster through "
-                                f"{', '.join(semantic_evidence)}."
-                            ),
+                            "description": (f"They share a narrow capability cluster through {', '.join(semantic_evidence)}."),
                         }
                     )
 
@@ -289,6 +293,20 @@ def build_graph_bundle(
         "skills": skills,
         "edges": edges,
     }
+
+
+def load_generation_bundle(
+    skills_root: Path,
+    gos_workspace: Path,
+) -> dict[str, Any]:
+    """Use the persisted repaired graph when available.
+
+    The deterministic fallback remains useful for tiny unit fixtures and old
+    generation workflows, but it must not be presented as the repaired GoS graph.
+    """
+    if (gos_workspace / "construction_report.json").is_file():
+        return load_workspace_bundle(gos_workspace, skills_root)
+    return build_graph_bundle(skills_root)
 
 
 def ensure_clean_dir(path: Path) -> None:
@@ -334,6 +352,7 @@ def render_compose_template(
     destination_env_dir: Path,
     skills_root: Path,
     gos_workspace: Path | None = None,
+    retrieval_condition: str | None = None,
 ) -> str:
     rendered = template_path.read_text(encoding="utf-8")
     skills_relative = os.path.relpath(skills_root, destination_env_dir)
@@ -351,6 +370,12 @@ def render_compose_template(
             rendered,
         )
 
+    if retrieval_condition is not None:
+        rendered = render_condition_environment(
+            rendered,
+            get_condition(retrieval_condition),
+        )
+
     return rendered
 
 
@@ -361,13 +386,13 @@ def build_docker_block(variant: str) -> str:
         "COPY CLAUDE.md /root/CLAUDE.md",
         "COPY AGENTS.md /root/AGENTS.md",
         "COPY GEMINI.md /root/GEMINI.md",
-        'RUN for d in /app /app/workspace /app/video /root /workspace /repo; do '
+        "RUN for d in /app /app/workspace /app/video /root /workspace /repo; do "
         'if [ -d "$d" ]; then '
         'cp /root/CLAUDE.md "$d/CLAUDE.md" 2>/dev/null || true; '
         'cp /root/AGENTS.md "$d/AGENTS.md" 2>/dev/null || true; '
         'cp /root/GEMINI.md "$d/GEMINI.md" 2>/dev/null || true; '
-        'fi; '
-        'done',
+        "fi; "
+        "done",
     ]
 
     if variant in {"graphskills", "vectorskills"}:
@@ -376,7 +401,7 @@ def build_docker_block(variant: str) -> str:
             "RUN if command -v python3 >/dev/null 2>&1; then :; "
             "elif command -v apt-get >/dev/null 2>&1; then "
             "apt-get update && apt-get install -y python3 && rm -rf /var/lib/apt/lists/*; "
-            f"else echo \"python3 is required for {command_name}\" >&2; exit 1; fi"
+            f'else echo "python3 is required for {command_name}" >&2; exit 1; fi'
         )
 
     if variant == "graphskills":
@@ -391,7 +416,7 @@ def build_docker_block(variant: str) -> str:
     elif variant == "vectorskills":
         lines.extend(
             [
-                "RUN if command -v python3 >/dev/null 2>&1; then :; elif command -v apt-get >/dev/null 2>&1; then apt-get update && apt-get install -y python3 && rm -rf /var/lib/apt/lists/*; else echo \"python3 is required for vectorskills-query\" >&2; exit 1; fi",
+                'RUN if command -v python3 >/dev/null 2>&1; then :; elif command -v apt-get >/dev/null 2>&1; then apt-get update && apt-get install -y python3 && rm -rf /var/lib/apt/lists/*; else echo "python3 is required for vectorskills-query" >&2; exit 1; fi',
                 "COPY vectorskills /opt/graphskills/vectorskills",
                 "RUN chmod +x /opt/graphskills/vectorskills/query.py && ln -sf /opt/graphskills/vectorskills/query.py /usr/local/bin/vectorskills-query",
                 "ENV GOS_PREBUILT_WORKING_DIR=/opt/graphskills/prebuilt",
@@ -424,6 +449,82 @@ def copy_task_tree(source_task_dir: Path, destination_task_dir: Path) -> None:
     if destination_task_dir.exists():
         shutil.rmtree(destination_task_dir)
     shutil.copytree(source_task_dir, destination_task_dir)
+    normalize_task_layout(destination_task_dir)
+
+
+def _toml_value(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, str):
+        return json.dumps(value)
+    if isinstance(value, list):
+        return "[" + ", ".join(_toml_value(item) for item in value) + "]"
+    raise TypeError(f"Unsupported TOML value: {value!r}")
+
+
+def _render_toml_section(name: str, values: dict[str, Any]) -> list[str]:
+    rendered = [f"[{name}]"]
+    for key, value in values.items():
+        if value is None or isinstance(value, dict):
+            continue
+        rendered.append(f"{key} = {_toml_value(value)}")
+    return rendered
+
+
+def normalize_task_layout(task_dir: Path) -> None:
+    """Convert current SkillsBench task.md layout for the pinned Harbor runtime."""
+    if (task_dir / "task.toml").exists():
+        return
+    task_markdown = task_dir / "task.md"
+    if not task_markdown.exists():
+        return
+
+    content = task_markdown.read_text(encoding="utf-8")
+    match = re.match(r"\A---\s*\n(.*?)\n---\s*\n(.*)\Z", content, re.DOTALL)
+    if match is None:
+        raise ValueError(f"Invalid SkillsBench task.md front matter: {task_markdown}")
+    config = yaml.safe_load(match.group(1)) or {}
+    if not isinstance(config, dict):
+        raise ValueError(f"SkillsBench task.md front matter must be a mapping: {task_markdown}")
+
+    instruction = match.group(2).lstrip("\n")
+    (task_dir / "instruction.md").write_text(instruction, encoding="utf-8")
+
+    metadata = dict(config.get("metadata") or {})
+    verifier = dict(config.get("verifier") or {})
+    agent = dict(config.get("agent") or {})
+    environment = dict(config.get("environment") or {})
+    solution = dict(config.get("solution") or {})
+    network_mode = environment.pop("network_mode", None)
+    if network_mode is not None:
+        environment["allow_internet"] = network_mode != "none"
+    environment.pop("workdir", None)
+    verifier.pop("type", None)
+    verifier.pop("service", None)
+    verifier.pop("hardening", None)
+
+    task_toml_lines = ['version = "1.0"', ""]
+    for section_name, values in (
+        ("metadata", metadata),
+        ("verifier", verifier),
+        ("agent", agent),
+        ("environment", environment),
+        ("solution", solution),
+    ):
+        task_toml_lines.extend(_render_toml_section(section_name, values))
+        task_toml_lines.append("")
+    (task_dir / "task.toml").write_text(
+        "\n".join(task_toml_lines),
+        encoding="utf-8",
+    )
+
+    for current_name, harbor_name in (("verifier", "tests"), ("oracle", "solution")):
+        source = task_dir / current_name
+        destination = task_dir / harbor_name
+        if source.exists() and not destination.exists():
+            shutil.copytree(source, destination)
 
 
 def canonical_task_source(task_dir: Path) -> Path:
@@ -434,7 +535,7 @@ def canonical_task_source(task_dir: Path) -> Path:
     authoritative while the generator still rewrites the environment for each method.
     """
     candidate = DEFAULT_TASKS_ROOT / task_dir.name
-    if candidate.exists() and (candidate / "task.toml").exists():
+    if candidate.exists() and any((candidate / task_file).exists() for task_file in ("task.toml", "task.md")):
         return candidate
     return task_dir
 
@@ -469,9 +570,10 @@ def prepare_graphskills_task(
     source_task_dir: Path,
     destination_task_dir: Path,
     bundle_path: Path,
-    vector_store_path: Path,
+    vector_store_path: Path | None,
     skills_root: Path,
     gos_workspace: Path,
+    retrieval_condition: str,
 ) -> None:
     copy_task_tree(source_task_dir, destination_task_dir)
     replace_task_skills(destination_task_dir, BOOTSTRAP_SKILL_DIR)
@@ -485,6 +587,7 @@ def prepare_graphskills_task(
             destination_env_dir=env_dir,
             skills_root=skills_root,
             gos_workspace=gos_workspace,
+            retrieval_condition=retrieval_condition,
         ),
         encoding="utf-8",
     )
@@ -496,7 +599,8 @@ def prepare_graphskills_task(
 
     hardlink_or_copy_file(QUERY_TEMPLATE, graphskills_dir / "query.py")
     hardlink_or_copy_file(bundle_path, graphskills_dir / "bundle.json")
-    hardlink_or_copy_file(vector_store_path, graphskills_dir / "vectors.pkl")
+    if vector_store_path is not None:
+        hardlink_or_copy_file(vector_store_path, graphskills_dir / "vectors.pkl")
 
     patch_dockerfile(destination_task_dir / "environment" / "Dockerfile", "graphskills")
 
@@ -539,7 +643,7 @@ def prepare_vectorskills_task(
 
 def build_task_list(tasks_root: Path, selected_tasks: list[str]) -> list[Path]:
     tasks = sorted(
-        path for path in tasks_root.iterdir() if path.is_dir() and (path / "task.toml").exists()
+        path for path in tasks_root.iterdir() if path.is_dir() and any((path / task_file).exists() for task_file in ("task.toml", "task.md"))
     )
     if not selected_tasks:
         return tasks
@@ -571,12 +675,19 @@ def write_vector_metadata(bundle: dict[str, Any], output_root: Path) -> Path:
 
 
 def write_vector_store(bundle: dict[str, Any], skills_root: Path, gos_workspace: Path, output_root: Path) -> Path:
+    if bundle.get("skills") and all(
+        "graph_vertex_id" in skill for skill in bundle["skills"]
+    ):
+        return write_workspace_vector_store(
+            bundle,
+            gos_workspace,
+            output_root / "shared" / "vectorskills_vectors.pkl",
+        )
+
     try:
         import hnswlib  # type: ignore
     except Exception as exc:
-        raise RuntimeError(
-            "hnswlib is required in the host environment to export vectorskills store"
-        ) from exc
+        raise RuntimeError("hnswlib is required in the host environment to export vectorskills store") from exc
 
     index_path = None
     for candidate in sorted(gos_workspace.glob("entities_hnsw_index_*.bin")):
@@ -659,16 +770,11 @@ def write_manifest(
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Generate SkillsBench datasets for all-skills, graph-skills, and vector-only evaluation."
-    )
+    parser = argparse.ArgumentParser(description="Generate SkillsBench datasets for all-skills, graph-skills, and vector-only evaluation.")
     parser.add_argument(
         "--skillset-name",
         default=DEFAULT_SKILLSET_NAME,
-        help=(
-            "Named skillset under data/skillsets/. "
-            "Ignored when --skills-root is explicitly provided."
-        ),
+        help=("Named skillset under data/skillsets/. Ignored when --skills-root is explicitly provided."),
     )
     parser.add_argument(
         "--tasks-root",
@@ -699,6 +805,12 @@ def parse_args() -> argparse.Namespace:
         action="append",
         default=[],
         help="Optional task id to generate. Repeat to include multiple tasks.",
+    )
+    parser.add_argument(
+        "--retrieval-condition",
+        choices=tuple(ABLATION_CONDITIONS),
+        default="lexical-reverse-ppr",
+        help="Pinned lightweight retrieval condition for generated graph-skills tasks.",
     )
     parser.add_argument(
         "--skip-allskills",
@@ -774,11 +886,12 @@ def main() -> None:
         repaired_tasks.append(canonical_task_source(repaired.resolve()))
 
     tasks = repaired_tasks
-    bundle = build_graph_bundle(skills_root)
+    bundle = load_generation_bundle(skills_root, gos_workspace)
     bundle_path = write_bundle(bundle, output_root)
     vector_metadata_path = None
     vector_store_path = None
-    if not args.skip_graphskills or not args.skip_vectorskills:
+    retrieval_condition = get_condition(args.retrieval_condition)
+    if not args.skip_vectorskills or (not args.skip_graphskills and retrieval_condition.requires_vector_store):
         vector_store_path = write_vector_store(bundle, skills_root, gos_workspace, output_root)
     if not args.skip_vectorskills:
         vector_metadata_path = write_vector_metadata(bundle, output_root)
@@ -806,6 +919,7 @@ def main() -> None:
                 vector_store_path,
                 skills_root,
                 gos_workspace,
+                args.retrieval_condition,
             )
 
     if not args.skip_vectorskills:

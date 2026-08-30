@@ -13,7 +13,6 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-
 TOKEN_STOPWORDS = {
     "a",
     "an",
@@ -98,17 +97,13 @@ def clip_text(text: str, max_chars: int) -> str:
 
 
 def render_skill_payload(skill: dict[str, Any], max_chars: int) -> str:
-    content = (
-        skill.get("raw_content")
-        or skill.get("rendered_snippet")
-        or f"{skill['name']}\n\n{skill['description']}"
-    )
+    content = skill.get("raw_content") or skill.get("rendered_snippet") or f"{skill['name']}\n\n{skill['description']}"
     content = clip_text(content, max_chars)
     header = [
         f"## Skill: {skill['name']}",
         f"Source: {skill.get('source_path') or 'inline'}",
     ]
-    return "\n".join(header + [content])
+    return "\n".join([*header, content])
 
 
 def lexical_seed_scores(
@@ -142,18 +137,20 @@ def lexical_seed_scores(
         return []
 
     weights = build_rank_distribution(len(selected))
-    return [
-        (index, float(weights[rank]), rank + 1)
-        for rank, (index, _) in enumerate(selected)
-    ]
+    return [(index, float(weights[rank]), rank + 1) for rank, (index, _) in enumerate(selected)]
 
 
 def build_transition(
     skills: list[dict[str, Any]],
     edges: list[dict[str, Any]],
+    *,
+    reverse_mode: str = "full",
 ) -> list[dict[int, float]]:
+    if reverse_mode not in {"full", "none"}:
+        raise ValueError(f"Unsupported reverse mode: {reverse_mode}")
+
     name_to_index = {skill["name"]: index for index, skill in enumerate(skills)}
-    transition: list[dict[int, float]] = [dict() for _ in skills]
+    transition: list[dict[int, float]] = [{} for _ in skills]
 
     for edge in edges:
         source_index = name_to_index.get(edge["source"])
@@ -165,16 +162,11 @@ def build_transition(
         if forward_weight <= 0:
             continue
 
-        transition[source_index][target_index] = (
-            transition[source_index].get(target_index, 0.0) + forward_weight
-        )
+        transition[source_index][target_index] = transition[source_index].get(target_index, 0.0) + forward_weight
 
-        reverse_weight = DEFAULT_REVERSE_WEIGHTS.get(edge.get("type", "semantic"), 0.0)
+        reverse_weight = DEFAULT_REVERSE_WEIGHTS.get(edge.get("type", "semantic"), 0.0) if reverse_mode == "full" else 0.0
         if reverse_weight > 0:
-            transition[target_index][source_index] = (
-                transition[target_index].get(source_index, 0.0)
-                + (forward_weight * reverse_weight)
-            )
+            transition[target_index][source_index] = transition[target_index].get(source_index, 0.0) + (forward_weight * reverse_weight)
 
     for index, row in enumerate(transition):
         if not row:
@@ -298,13 +290,11 @@ def render_context(
     if relations:
         relation_lines = ["## Graph evidence"]
         for relation in relations:
-            candidate_lines = relation_lines + [
-                (
-                    f"- {relation['source']} --({relation['type']})--> "
-                    f"{relation['target']}: {relation['description']}"
-                )
+            candidate_lines = [
+                *relation_lines,
+                (f"- {relation['source']} --({relation['type']})--> {relation['target']}: {relation['description']}"),
             ]
-            candidate_context = "\n\n".join(sections + ["\n".join(candidate_lines)])
+            candidate_context = "\n\n".join([*sections, "\n".join(candidate_lines)])
             if len(candidate_context) > max_chars:
                 break
             relation_lines = candidate_lines
@@ -346,15 +336,8 @@ def render_summary(
         "\n### Retrieved Skills",
     ]
     for skill in skills:
-        semantic_rank = (
-            f", seed rank {skill['semantic_rank']}"
-            if skill.get("semantic_rank") is not None
-            else ""
-        )
-        lines.append(
-            f"- {skill['name']}: {skill['description']} "
-            f"(graph score={skill['score']:.4f}{semantic_rank})"
-        )
+        semantic_rank = f", seed rank {skill['semantic_rank']}" if skill.get("semantic_rank") is not None else ""
+        lines.append(f"- {skill['name']}: {skill['description']} (graph score={skill['score']:.4f}{semantic_rank})")
         if skill.get("source_path"):
             lines.append(f"  Source: {skill['source_path']}")
         if skill.get("script_entrypoints"):
@@ -364,9 +347,7 @@ def render_summary(
     if seeds:
         lines.append("\n### Semantic Seeds")
         for seed in seeds:
-            lines.append(
-                f"- {seed['name']} (seed weight={seed['seed_weight']:.4f}, rank={seed['semantic_rank']})"
-            )
+            lines.append(f"- {seed['name']} (seed weight={seed['seed_weight']:.4f}, rank={seed['semantic_rank']})")
 
     if relations:
         lines.append("\n### Graph Edges")
@@ -403,17 +384,11 @@ def fetch_embedding(query: str, model: str, api_key: str, base_url: str) -> list
                 response_json = json.loads(body)
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")
-            last_error = (
-                f"Embedding request failed for model={normalized_model!r} via {endpoint}: "
-                f"status={exc.code}, body={body[:400]}"
-            )
+            last_error = f"Embedding request failed for model={normalized_model!r} via {endpoint}: status={exc.code}, body={body[:400]}"
             if exc.code not in EMBEDDING_RETRYABLE_STATUS_CODES:
                 raise RuntimeError(last_error) from exc
         except Exception as exc:
-            last_error = (
-                f"Embedding request failed for model={normalized_model!r} via {endpoint}: "
-                f"request_error={exc}"
-            )
+            last_error = f"Embedding request failed for model={normalized_model!r} via {endpoint}: request_error={exc}"
         else:
             data = response_json.get("data") or []
             if not data:
@@ -440,9 +415,7 @@ def load_vector_store(store_path: Path) -> dict[str, Any]:
     if dim <= 0:
         raise RuntimeError(f"Invalid vector store dim: {dim}")
     if len(blob) != len(ids) * dim * 4:
-        raise RuntimeError(
-            f"Vector blob size mismatch: ids={len(ids)}, dim={dim}, bytes={len(blob)}"
-        )
+        raise RuntimeError(f"Vector blob size mismatch: ids={len(ids)}, dim={dim}, bytes={len(blob)}")
     return {"ids": ids, "dim": dim, "blob": blob}
 
 
@@ -514,10 +487,7 @@ def embedding_seed_scores(
         return []
 
     weights = build_rank_distribution(len(ranked_indices))
-    return [
-        (index, float(weights[rank]), rank + 1)
-        for rank, index in enumerate(ranked_indices)
-    ]
+    return [(index, float(weights[rank]), rank + 1) for rank, index in enumerate(ranked_indices)]
 
 
 def rank_from_seed_entries(
@@ -544,6 +514,65 @@ def rank_from_seed_entries(
                 "payload": render_skill_payload(skill, max_skill_chars),
             }
         )
+    return ranked
+
+
+def rank_one_hop(
+    skills: list[dict[str, Any]],
+    edges: list[dict[str, Any]],
+    seed_entries: list[tuple[int, float, int]],
+    *,
+    max_skill_chars: int,
+) -> list[dict[str, Any]]:
+    """Rank seeds followed by their strongest incoming dependency prerequisites."""
+    ranked = rank_from_seed_entries(
+        skills,
+        seed_entries,
+        max_skill_chars=max_skill_chars,
+    )
+    name_to_index = {skill["name"]: index for index, skill in enumerate(skills)}
+    selected_indices = {index for index, _, _ in seed_entries}
+    seed_order = {index: rank for index, _, rank in seed_entries}
+    candidates: list[tuple[int, float, int]] = []
+
+    for edge in edges:
+        if edge.get("type") != "dependency":
+            continue
+        source_index = name_to_index.get(edge.get("source", ""))
+        target_index = name_to_index.get(edge.get("target", ""))
+        if source_index is None or target_index is None:
+            continue
+        if target_index not in seed_order or source_index in selected_indices:
+            continue
+        candidates.append(
+            (
+                seed_order[target_index],
+                -float(edge.get("weight", 1.0) or 1.0),
+                source_index,
+            )
+        )
+
+    for _seed_rank, negative_weight, index in sorted(candidates):
+        if index in selected_indices:
+            continue
+        selected_indices.add(index)
+        skill = skills[index]
+        ranked.append(
+            {
+                "name": skill["name"],
+                "description": skill.get("description", ""),
+                "source_path": skill.get("source_path", ""),
+                "score": -negative_weight,
+                "semantic_rank": None,
+                "inputs": skill.get("inputs", []),
+                "outputs": skill.get("outputs", []),
+                "compatibility": skill.get("compatibility", []),
+                "allowed_tools": skill.get("allowed_tools", []),
+                "rendered_snippet": skill.get("rendered_snippet", ""),
+                "payload": render_skill_payload(skill, max_skill_chars),
+            }
+        )
+
     return ranked
 
 
@@ -577,9 +606,10 @@ def retrieve(
     seed_top_k: int,
     max_skill_chars: int,
     max_context_chars: int,
-    seed_mode: str,
-    propagation_mode: str,
-    vector_store_path: Path | None,
+    seed_mode: str = "lexical",
+    propagation_mode: str = "ppr",
+    reverse_mode: str = "full",
+    vector_store_path: Path | None = None,
 ) -> dict[str, Any]:
     skills = bundle.get("skills", [])
     edges = bundle.get("edges", [])
@@ -593,6 +623,7 @@ def retrieve(
         "ppr_damping": metadata.get("ppr_damping", 0.2) if propagation_mode == "ppr" else 0.0,
         "seed_mode": seed_mode,
         "propagation_mode": propagation_mode,
+        "reverse_mode": reverse_mode,
     }
 
     if not query.strip():
@@ -606,13 +637,14 @@ def retrieve(
             "budget": budget,
         }
 
-    seed_entries = build_seed_entries(
+    candidate_seed_entries = build_seed_entries(
         query,
         skills,
-        seed_top_k,
+        max(seed_top_k, top_n),
         seed_mode=seed_mode,
         vector_store_path=vector_store_path,
     )
+    seed_entries = candidate_seed_entries[:seed_top_k]
     if not seed_entries:
         return {
             "query": query,
@@ -628,6 +660,13 @@ def retrieve(
     if propagation_mode == "none":
         ranked = rank_from_seed_entries(
             skills,
+            candidate_seed_entries[:top_n],
+            max_skill_chars=max_skill_chars,
+        )
+    elif propagation_mode == "one-hop":
+        ranked = rank_one_hop(
+            skills,
+            edges,
             seed_entries,
             max_skill_chars=max_skill_chars,
         )
@@ -639,7 +678,7 @@ def retrieve(
         if total > 0:
             personalization = [weight / total for weight in personalization]
 
-        transition = build_transition(skills, edges)
+        transition = build_transition(skills, edges, reverse_mode=reverse_mode)
         scores = personalized_pagerank(
             transition,
             personalization,
@@ -740,9 +779,15 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--propagation-mode",
-        choices=("ppr", "none"),
+        choices=("ppr", "none", "one-hop"),
         default=os.getenv("GOS_LIGHT_PROPAGATION_MODE", "ppr"),
         help="Whether to apply personalized PageRank after seed selection.",
+    )
+    parser.add_argument(
+        "--reverse-mode",
+        choices=("full", "none"),
+        default=os.getenv("GOS_LIGHT_REVERSE_MODE", "full"),
+        help="Whether PPR includes relation-specific reverse transitions.",
     )
     parser.add_argument(
         "--max-skill-chars",
@@ -781,6 +826,7 @@ def main() -> None:
         max_context_chars=args.max_context_chars,
         seed_mode=args.seed_mode,
         propagation_mode=args.propagation_mode,
+        reverse_mode=args.reverse_mode,
         vector_store_path=args.vector_store,
     )
 

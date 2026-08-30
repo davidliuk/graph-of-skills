@@ -19,6 +19,53 @@ Use Harbor to run experiments with YAML configs:
 harbor run -c experiments/configs/main-run1.yaml
 ```
 
+## TRAE CLI retrieval ablations
+
+`scripts/run_traex_ablation.py` supports four matched lexical-seed conditions. All four
+use the same skill library, task set, retrieval budget, TRAE CLI executable, and
+GPT-5.2 model selection; only graph propagation changes.
+
+| Condition | Seeds | Propagation | Reverse prerequisite edges |
+|---|---|---|---|
+| `lexical-reverse-ppr` | lexical | personalized PageRank | enabled |
+| `lexical-forward-ppr` | lexical | personalized PageRank | disabled |
+| `lexical-no-graph` | lexical | none | not used |
+| `lexical-one-hop` | lexical | one dependency hop | enabled |
+
+This is deliberately a lexical-only study because it requires no compatible external
+embedding API. It should not be described as the paper's hybrid lexical+embedding
+retrieval setting.
+
+From the repository root:
+
+```bash
+./scripts/download_data.sh --skillsets
+./scripts/download_data.sh --tasks
+
+# Dry run: inspect the exact commands without spending a model run.
+uv run python evaluation/skillsbench/scripts/run_traex_ablation.py \
+  --condition lexical-reverse-ppr \
+  --task dialogue-parser
+
+# Execute one task, then expand the task list only after it passes.
+uv run python evaluation/skillsbench/scripts/run_traex_ablation.py \
+  --condition lexical-reverse-ppr \
+  --task dialogue-parser \
+  --attempts 1 \
+  --execute
+```
+
+Static Harbor configs are under `configs/traex/`. Suggested run order:
+
+1. `smoke.yaml`
+2. one task under `lexical-reverse-ppr`
+3. the same task under all four conditions
+4. the selected task subset under all four conditions
+
+Keep `n_concurrent_trials: 1` initially because all trials share the authenticated local
+TRAE service. Increase it only after observing stable model latency. Per-trial CLI events
+and startup diagnostics are streamed to `agent/traex.jsonl`.
+
 ## Graph Skills Evaluation
 
 This repository now supports two generated evaluation conditions derived from the same
@@ -101,6 +148,7 @@ cd metrics-dashboard && npm run dev  # http://localhost:5173
 | `codex` | OpenAI GPT | `OPENAI_API_KEY` |
 | `terminus-2` | OpenAI GPT | `OPENAI_API_KEY` |
 | `gemini-cli` | Google Gemini | `GEMINI_API_KEY` |
+| `traex-host` | TRAE CLI GPT-5.2 (Codex harness mode) | local `traex login` session |
 
 ## Results
 

@@ -17,6 +17,10 @@ The input document is usually a `SKILL.md` file with YAML frontmatter and a mark
 5. Do not include filesystem-only or bookkeeping fields in the semantic extraction; those are handled outside the model.
 6. Use high precision. If a field is uncertain, leave it empty.
 7. Do not invent relationships during this phase. Return an empty `edges` list.
+8. `inputs` and `outputs` must be arrays of short artifact strings, never arrays of
+   objects or JSON schemas. Describe consumed/produced artifacts such as "input video
+   file", "mono WAV audio", or "energy profile JSON". Do not list CLI control flags,
+   destination/output-path arguments, thresholds, durations, or tuning parameters as inputs.
 
 # OUTPUT FORMAT
 Return strictly valid JSON with:
@@ -35,25 +39,43 @@ PROMPTS["skill_extraction_prompt"] = """**STRICT JSON RULES**:
 OUTPUT:
 """
 
-PROMPTS["search_and_link_system"] = """You are validating candidate relationships for a skill graph.
+PROMPTS[
+    "search_and_link_system"
+] = """You are validating candidate relationships for a skill graph.
+
+The request contains exactly one FOCUS SKILL and a bounded candidate list. Every emitted
+relation must connect the FOCUS SKILL to exactly one listed candidate. Never relate two
+candidates to each other, invent a name, or emit a self edge.
 
 # RELATIONSHIP TYPES
-- `dependency`: Skill A produces something Skill B consumes.
-- `workflow`: Skill A and Skill B are commonly chained in a concrete multi-step workflow.
+- `dependency`: The source is the producer/prerequisite; the target consumes its artifact
+  or explicitly requires it. Direction is always producer -> consumer.
+- `workflow`: The source is the earlier step and the target is the later step in a concrete
+  multi-step workflow.
 - `semantic`: Skill A and Skill B are in the same narrow capability cluster.
 - `alternative`: Skill A and Skill B solve the same task via different implementations.
 
 # RULES
 - Prefer sparse, high-precision edges.
 - Only emit an edge when the evidence is explicit or strongly implied.
+- Emit only relations whose confidence is at least 0.75.
 - Dependency edges are preferred over semantic edges when I/O compatibility exists.
 - If uncertain, emit no edge.
 - Do not try to make the graph dense.
 - `source` and `target` must match the skill names exactly.
+- For every `dependency` description, state explicitly: "SOURCE produces/provides
+  ARTIFACT; TARGET consumes/requires ARTIFACT." Do not emit the edge if this role
+  assignment is not supported by the listed interfaces.
+- For every `workflow` description, state explicitly: "SOURCE precedes TARGET"
+  and name the concrete handoff. Do not reverse an order described by the evidence.
+- Do not emit `semantic` solely because two skills share the same automation
+  wrapper, MCP platform, provider pattern, or generic service-integration tooling.
+- Include short, concrete `evidence` strings for every relation. Do not emit a relation
+  supported only by generic wrapper fields such as data, result, operation, session, or JSON.
 
 # OUTPUT FORMAT
 Return valid JSON:
-{"relations": [{"source": "...", "target": "...", "description": "...", "type": "...", "confidence": 0.0}]}
+{"relations": [{"source": "...", "target": "...", "description": "...", "type": "...", "confidence": 0.0, "evidence": ["..."]}]}
 """
 
 PROMPTS["search_and_link_prompt"] = """

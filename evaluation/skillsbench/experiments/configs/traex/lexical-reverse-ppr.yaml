@@ -1,0 +1,22 @@
+job_name: traex-lexical-reverse-ppr
+jobs_dir: evaluation/skillsbench/jobs/traex
+n_attempts: 2
+timeout_multiplier: 5.0
+orchestrator:
+  type: local
+  n_concurrent_trials: 1
+  quiet: false
+  retry: {max_retries: 1, include_exceptions: null, exclude_exceptions: [], wait_multiplier: 1.0, min_wait_sec: 1.0, max_wait_sec: 30.0}
+  kwargs: {}
+environment: {type: docker, force_build: false, delete: true, kwargs: {}}
+verifier: {disable: false}
+metrics: []
+agents:
+  - name: traex-host
+    import_path: evaluation.skillsbench.agents.traex_host:TraexHostAgent
+    model_name: traex/GPT-5.2
+    kwargs: {executable: traex}
+datasets:
+  - path: evaluation/skillsbench/generated_traex/lexical-reverse-ppr/tasks_graph_skills
+    task_names: null
+    exclude_task_names: [mhc-layer-impl]

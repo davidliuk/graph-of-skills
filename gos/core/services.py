@@ -1,23 +1,49 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
-import json
-from typing import Any
+from typing import Any, Iterable
 
 from fast_graphrag._llm import BaseLLMService
-from fast_graphrag._services._information_extraction import DefaultInformationExtractionService
+from fast_graphrag._services._information_extraction import (
+    DefaultInformationExtractionService,
+)
 from fast_graphrag._storage._base import BaseGraphStorage
 from fast_graphrag._types import TChunk, TId
 
 from .parsing import build_extraction_input, parse_skill_document
 from .prompts import PROMPTS
 from .schema import GOSGraph, GOSSkill, SkillEdge, SkillNode
+from .storage import DirectedIGraphStorage
 
 
 @dataclass
 class SkillInformationExtractionService(DefaultInformationExtractionService):
     use_full_markdown: bool = field(default=False)
     snippet_chars: int = field(default=800)
+    extraction_concurrency: int = field(default=6)
+
+    def extract(
+        self,
+        llm: BaseLLMService,
+        documents: Iterable[Iterable[TChunk]],
+        prompt_kwargs: dict[str, str],
+        entity_types: list[str],
+    ) -> list[asyncio.Future[Any]]:
+        semaphore = asyncio.Semaphore(max(int(self.extraction_concurrency), 1))
+
+        async def extract_bounded(document: Iterable[TChunk]) -> Any:
+            async with semaphore:
+                return await self._extract(
+                    llm,
+                    document,
+                    dict(prompt_kwargs),
+                    entity_types,
+                )
+
+        return [
+            asyncio.create_task(extract_bounded(document)) for document in documents
+        ]
 
     def _chunk_metadata(self, chunk: TChunk) -> dict[str, Any]:
         metadata = getattr(chunk, "metadata", None)
@@ -46,7 +72,9 @@ class SkillInformationExtractionService(DefaultInformationExtractionService):
             result.append(normalized)
         return result
 
-    def _merge_field_lists(self, inferred: list[str], parsed: list[str], *, llm_primary: bool = False) -> list[str]:
+    def _merge_field_lists(
+        self, inferred: list[str], parsed: list[str], *, llm_primary: bool = False
+    ) -> list[str]:
         if llm_primary:
             if inferred:
                 return self._dedupe(inferred)
@@ -55,7 +83,9 @@ class SkillInformationExtractionService(DefaultInformationExtractionService):
             return self._dedupe(inferred + parsed)
         return self._dedupe(parsed + inferred)
 
-    def _merge_metadata(self, inferred: dict[str, Any], parsed: dict[str, Any]) -> dict[str, Any]:
+    def _merge_metadata(
+        self, inferred: dict[str, Any], parsed: dict[str, Any]
+    ) -> dict[str, Any]:
         merged = dict(parsed)
         for key, value in inferred.items():
             if key not in merged:
@@ -63,7 +93,9 @@ class SkillInformationExtractionService(DefaultInformationExtractionService):
                 continue
             existing = merged[key]
             if isinstance(existing, list) and isinstance(value, list):
-                merged[key] = self._dedupe([*(str(item) for item in existing), *(str(item) for item in value)])
+                merged[key] = self._dedupe(
+                    [*(str(item) for item in existing), *(str(item) for item in value)]
+                )
             elif isinstance(existing, dict) and isinstance(value, dict):
                 nested = dict(existing)
                 nested.update(value)
@@ -111,9 +143,14 @@ class SkillInformationExtractionService(DefaultInformationExtractionService):
     ) -> GOSSkill | None:
         try:
             graph, _ = await llm.send_message(
-                system_prompt=PROMPTS["skill_extraction_system"].format(domain="Agent Skills"),
-                prompt=PROMPTS["skill_extraction_prompt"].format(input_text=document_input),
+                system_prompt=PROMPTS["skill_extraction_system"].format(
+                    domain="Agent Skills"
+                ),
+                prompt=PROMPTS["skill_extraction_prompt"].format(
+                    input_text=document_input
+                ),
                 response_model=GOSGraph,
+                gos_stage="semantic_completion",
             )
         except Exception:
             return None
@@ -122,6 +159,16 @@ class SkillInformationExtractionService(DefaultInformationExtractionService):
             return None
 
         return graph.nodes[0]
+
+    @staticmethod
+    def _needs_semantic_completion(document: Any) -> bool:
+        has_interface = bool(document.inputs and document.outputs)
+        has_semantic_context = bool(
+            document.domain_tags or document.tooling or document.example_tasks
+        )
+        return not (
+            document.one_line_capability and has_interface and has_semantic_context
+        )
 
     async def _extract_from_chunk(
         self,
@@ -143,7 +190,7 @@ class SkillInformationExtractionService(DefaultInformationExtractionService):
             return GOSGraph(nodes=[], edges=[])
 
         inferred = None
-        if self.use_full_markdown:
+        if self.use_full_markdown and self._needs_semantic_completion(document):
             prompt_input = build_extraction_input(document)
             inferred = self._normalize_inferred_skill(
                 await self._infer_missing_fields(llm, prompt_input),
@@ -151,23 +198,40 @@ class SkillInformationExtractionService(DefaultInformationExtractionService):
                 document.description,
             )
 
-        llm_primary = self.use_full_markdown
-        inputs = self._merge_field_lists(inferred.inputs if inferred else [], document.inputs, llm_primary=llm_primary)
-        outputs = self._merge_field_lists(inferred.outputs if inferred else [], document.outputs, llm_primary=llm_primary)
-        domain_tags = self._merge_field_lists(inferred.domain_tags if inferred else [], document.domain_tags, llm_primary=llm_primary)
-        tooling = self._merge_field_lists(inferred.tooling if inferred else [], document.tooling, llm_primary=llm_primary)
-        example_tasks = self._merge_field_lists(inferred.example_tasks if inferred else [], document.example_tasks, llm_primary=llm_primary)
-        compatibility = self._merge_field_lists(inferred.compatibility if inferred else [], document.compatibility)
-        allowed_tools = self._merge_field_lists(inferred.allowed_tools if inferred else [], document.allowed_tools)
+        inferred_inputs = inferred.inputs if inferred else []
+        inferred_outputs = inferred.outputs if inferred else []
+        inputs = self._dedupe(document.inputs or inferred_inputs)
+        outputs = self._dedupe(document.outputs or inferred_outputs)
+        domain_tags = self._merge_field_lists(
+            inferred.domain_tags if inferred else [],
+            document.domain_tags,
+        )
+        tooling = self._merge_field_lists(
+            inferred.tooling if inferred else [],
+            document.tooling,
+        )
+        example_tasks = self._merge_field_lists(
+            inferred.example_tasks if inferred else [],
+            document.example_tasks,
+        )
+        compatibility = self._merge_field_lists(
+            inferred.compatibility if inferred else [], document.compatibility
+        )
+        allowed_tools = self._merge_field_lists(
+            inferred.allowed_tools if inferred else [], document.allowed_tools
+        )
         script_entrypoints = self._merge_field_lists(
             document.script_entrypoints,
             inferred.script_entrypoints if inferred else [],
         )
-        one_line_capability = (
-            (inferred.one_line_capability.strip() if inferred and inferred.one_line_capability else "")
-            or document.one_line_capability
+        one_line_capability = document.one_line_capability or (
+            inferred.one_line_capability.strip()
+            if inferred and inferred.one_line_capability
+            else ""
         )
-        metadata = self._merge_metadata(inferred.metadata if inferred else {}, document.metadata)
+        metadata = self._merge_metadata(
+            inferred.metadata if inferred else {}, document.metadata
+        )
         metadata.setdefault("extraction_source", "llm+parser" if inferred else "parser")
 
         node = GOSSkill(
@@ -195,9 +259,9 @@ class SkillInformationExtractionService(DefaultInformationExtractionService):
         llm: BaseLLMService,
         graphs: list[GOSGraph],
     ) -> BaseGraphStorage[SkillNode, SkillEdge, TId]:
-        from fast_graphrag._storage._gdb_igraph import IGraphStorage, IGraphStorageConfig
+        from fast_graphrag._storage._gdb_igraph import IGraphStorageConfig
 
-        graph_storage = IGraphStorage[SkillNode, SkillEdge, TId](
+        graph_storage = DirectedIGraphStorage(
             config=IGraphStorageConfig(SkillNode, SkillEdge)
         )
 

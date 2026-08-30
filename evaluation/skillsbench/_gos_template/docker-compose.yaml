@@ -1,5 +1,9 @@
 services:
   main:
+    build:
+      context: ${CONTEXT_DIR}
+    image: ${MAIN_IMAGE_NAME}
+    network_mode: ${NETWORK_MODE:-bridge}
     command:
       - /bin/bash
       - -lc
@@ -10,6 +14,8 @@ services:
         ln -s /opt/graphskills/skills/gmail-skill /root/verifier-skills/gmail-skill
         exec sleep infinity
     volumes:
+      - ${HOST_VERIFIER_LOGS_PATH}:${ENV_VERIFIER_LOGS_PATH}
+      - ${HOST_AGENT_LOGS_PATH}:${ENV_AGENT_LOGS_PATH}
       # GoS package source (mounted read-only; importable via PYTHONPATH=/opt/graphskills)
       - ../../../../../gos:/opt/graphskills/gos:ro
       # Pre-built skill graph workspace. Defaults to skills_200_v1. Override
@@ -19,6 +25,7 @@ services:
       # accessible so agents can read scripts after GoS retrieval.
       - ../../../all_skills:/opt/graphskills/skills:ro
     environment:
+      - TEST_DIR=${TEST_DIR}
       - GOS_PREBUILT_WORKING_DIR=/opt/graphskills/prebuilt
       - GOS_WORKING_DIR=/opt/graphskills/runtime
       # Rewrites Source: paths in graphskills-query output to container-accessible paths
@@ -29,8 +36,14 @@ services:
       - GOS_EMBEDDING_DIM
       - GOS_LIGHT_SEED_MODE
       - GOS_LIGHT_PROPAGATION_MODE
+      - GOS_LIGHT_REVERSE_MODE
       - GOS_LLM_MODEL
       - GEMINI_API_KEY
       - OPENROUTER_API_KEY
       - OPENAI_API_KEY
       - OPENAI_BASE_URL
+    deploy:
+      resources:
+        limits:
+          cpus: ${CPUS}
+          memory: ${MEMORY}
